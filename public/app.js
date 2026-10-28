@@ -1,0 +1,686 @@
+// State
+let appState = {
+  activeTab: 'watched-repos',
+  repositories: [],
+  events: [],
+  status: null,
+  settings: null
+};
+
+// DOM Elements
+const watchedListEl = document.getElementById('watchedRepoList');
+const ownedListEl = document.getElementById('ownedRepoList');
+const emptyWatchedEl = document.getElementById('emptyWatched');
+const emptyOwnedEl = document.getElementById('emptyOwned');
+const activityFeedListEl = document.getElementById('activityFeedList');
+const emptyActivityEl = document.getElementById('emptyActivity');
+
+const addModalEl = document.getElementById('addModal');
+const settingsModalEl = document.getElementById('settingsModal');
+
+const addRepoForm = document.getElementById('addRepoForm');
+const settingsForm = document.getElementById('settingsForm');
+
+const repoInputEl = document.getElementById('repoInput');
+const btnValidateRepo = document.getElementById('btnValidateRepo');
+const verificationResultEl = document.getElementById('verificationResult');
+
+// Initialize
+document.addEventListener('DOMContentLoaded', () => {
+  setupTabs();
+  setupModals();
+  setupFormHandlers();
+  loadData();
+
+  // Poll for status and events updates every 15 seconds
+  setInterval(() => {
+    loadStatus();
+    loadEvents();
+  }, 15000);
+});
+
+// Setup Tabs
+function setupTabs() {
+  const tabs = document.querySelectorAll('.tab-btn');
+  tabs.forEach(tab => {
+    tab.addEventListener('click', () => {
+      tabs.forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+
+      tab.classList.add('active');
+      const targetId = `pane-${tab.dataset.tab}`;
+      const targetPane = document.getElementById(targetId);
+      if (targetPane) targetPane.classList.add('active');
+      appState.activeTab = tab.dataset.tab;
+    });
+  });
+}
+
+// Setup Modals
+function setupModals() {
+  document.getElementById('btnOpenAddModal').addEventListener('click', () => openAddModal());
+  document.getElementById('btnCloseAddModal').addEventListener('click', () => closeAddModal());
+  document.getElementById('btnCancelAdd').addEventListener('click', () => closeAddModal());
+
+  document.getElementById('btnSettings').addEventListener('click', () => openSettingsModal());
+  document.getElementById('btnCloseSettingsModal').addEventListener('click', () => closeSettingsModal());
+  document.getElementById('btnCancelSettings').addEventListener('click', () => closeSettingsModal());
+
+  document.getElementById('btnRefreshWatched').addEventListener('click', () => loadRepositories());
+  document.getElementById('btnRefreshActivity').addEventListener('click', () => loadEvents());
+
+  document.getElementById('btnDiscoverOwned').addEventListener('click', handleAutoDiscovery);
+  document.getElementById('btnTestDiscord').addEventListener('click', handleDiscordTest);
+}
+
+function openAddModal(preferredType = 'watched') {
+  addModalEl.classList.add('open');
+  repoInputEl.value = '';
+  verificationResultEl.style.display = 'none';
+  verificationResultEl.className = 'verification-banner';
+
+  const radio = document.querySelector(`input[name="repoOwnership"][value="${preferredType}"]`);
+  if (radio) radio.checked = true;
+
+  updatePollingVisibility();
+  repoInputEl.focus();
+}
+
+function closeAddModal() {
+  addModalEl.classList.remove('open');
+}
+
+function openSettingsModal() {
+  settingsModalEl.classList.add('open');
+  loadSettings();
+}
+
+function closeSettingsModal() {
+  settingsModalEl.classList.remove('open');
+}
+
+function updatePollingVisibility() {
+  const isOwned = document.querySelector('input[name="repoOwnership"]:checked')?.value === 'owned';
+  const group = document.getElementById('pollingIntervalGroup');
+  if (group) {
+    group.style.display = isOwned ? 'none' : 'block';
+  }
+}
+
+document.querySelectorAll('input[name="repoOwnership"]').forEach(el => {
+  el.addEventListener('change', updatePollingVisibility);
+});
+
+// Setup Form Handlers
+function setupFormHandlers() {
+  // Live Verify button in add modal
+  btnValidateRepo.addEventListener('click', async () => {
+    const input = repoInputEl.value.trim();
+    if (!input) {
+      showToast('Please enter a repository identifier or URL.', 'error');
+      return;
+    }
+
+    btnValidateRepo.disabled = true;
+    btnValidateRepo.textContent = 'Checking...';
+    verificationResultEl.style.display = 'none';
+
+    try {
+      // Test verify via quick check
+      const res = await fetch('/api/repositories', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ input, is_owned: false, verifyOnly: true })
+      });
+      const data = await res.json();
+
+      verificationResultEl.style.display = 'block';
+
+      if (data.code === 'PRIVATE_REPOSITORY_REJECTED') {
+        verificationResultEl.className = 'verification-banner error';
+        verificationResultEl.innerHTML = `<strong>⛔ Private Repository:</strong> ${data.error}<br><small>GitHub Discord Bot strictly monitors public repositories.</small>`;
+      } else if (data.code === 'REPOSITORY_NOT_FOUND') {
+        verificationResultEl.className = 'verification-banner error';
+        verificationResultEl.innerHTML = `<strong>⚠️ Not Found:</strong> ${data.error}`;
+      } else if (res.status === 409) {
+        verificationResultEl.className = 'verification-banner error';
+        verificationResultEl.innerHTML = `<strong>ℹ️ Already Monitored:</strong> This repository is already in your watchlist.`;
+      } else if (data.success) {
+        verificationResultEl.className = 'verification-banner success';
+        verificationResultEl.innerHTML = `<strong>✅ Verified Public:</strong> ${data.repository?.full_name} (${data.repository?.stars || 0} ⭐)`;
+        // If it was already added, reload
+        loadData();
+      } else {
+        verificationResultEl.className = 'verification-banner error';
+        verificationResultEl.innerHTML = `<strong>Error:</strong> ${data.error || 'Failed to verify'}`;
+      }
+    } catch (err) {
+      verificationResultEl.style.display = 'block';
+      verificationResultEl.className = 'verification-banner error';
+      verificationResultEl.innerHTML = `<strong>Network Error:</strong> ${err.message}`;
+    } finally {
+      btnValidateRepo.disabled = false;
+      btnValidateRepo.textContent = 'Verify';
+    }
+  });
+
+  // Submit Add Repository
+  addRepoForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const input = repoInputEl.value.trim();
+    if (!input) return;
+
+    const isOwned = document.querySelector('input[name="repoOwnership"]:checked')?.value === 'owned';
+    const pollingInterval = parseInt(document.getElementById('pollIntervalInput').value, 10) || 300;
+
+    const preferences = {
+      notify_releases: document.getElementById('prefReleases').checked,
+      notify_pull_requests: document.getElementById('prefPRs').checked,
+      notify_issues: document.getElementById('prefIssues').checked,
+      notify_pushes: document.getElementById('prefPushes').checked,
+      notify_stars: document.getElementById('prefStars').checked,
+      notify_forks: document.getElementById('prefForks').checked
+    };
+
+    const submitBtn = document.getElementById('btnSubmitAdd');
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Adding...';
+
+    try {
+      const res = await fetch('/api/repositories', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          input,
+          is_owned: isOwned,
+          polling_interval_seconds: pollingInterval,
+          preferences
+        })
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        verificationResultEl.style.display = 'block';
+        verificationResultEl.className = 'verification-banner error';
+        verificationResultEl.innerHTML = `<strong>Error:</strong> ${data.error}`;
+        showToast(data.error || 'Failed to add repository', 'error');
+        return;
+      }
+
+      showToast(data.message, 'success');
+      closeAddModal();
+      await loadData();
+
+      // Switch to matching tab
+      const tabToActivate = isOwned ? 'tabMyRepos' : 'tabWatched';
+      document.getElementById(tabToActivate)?.click();
+    } catch (err) {
+      showToast(err.message, 'error');
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Start Monitoring';
+    }
+  });
+
+  // Save Settings
+  settingsForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const discordUrl = document.getElementById('discordWebhookInput').value.trim();
+    const githubToken = document.getElementById('githubTokenInput').value.trim();
+    const webhookSecret = document.getElementById('webhookSecretInput').value.trim();
+
+    try {
+      const res = await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          discord_webhook_url: discordUrl,
+          github_token: githubToken,
+          github_webhook_secret: webhookSecret
+        })
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        showToast('Settings saved successfully.', 'success');
+        closeSettingsModal();
+        loadStatus();
+      } else {
+        showToast(data.error || 'Failed to save settings', 'error');
+      }
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  });
+}
+
+// Load All Data
+async function loadData() {
+  await Promise.all([
+    loadRepositories(),
+    loadEvents(),
+    loadStatus()
+  ]);
+}
+
+// Load Repositories
+async function loadRepositories() {
+  try {
+    const res = await fetch('/api/repositories');
+    const data = await res.json();
+    if (data.success) {
+      appState.repositories = data.repositories;
+      renderRepositories();
+    }
+  } catch (err) {
+    console.error('Failed to load repositories:', err);
+  }
+}
+
+// Render Repositories
+function renderRepositories() {
+  const owned = appState.repositories.filter(r => r.is_owned);
+  const watched = appState.repositories.filter(r => !r.is_owned);
+
+  document.getElementById('badgeWatched').textContent = watched.length;
+  document.getElementById('badgeOwned').textContent = owned.length;
+  document.getElementById('metricTotalRepos').textContent = appState.repositories.length;
+  document.getElementById('metricOwnedRepos').textContent = owned.length;
+  document.getElementById('metricWatchedRepos').textContent = watched.length;
+
+  // Render Watched
+  if (watched.length === 0) {
+    watchedListEl.innerHTML = '';
+    emptyWatchedEl.style.display = 'flex';
+  } else {
+    emptyWatchedEl.style.display = 'none';
+    watchedListEl.innerHTML = watched.map(renderRepoCard).join('');
+  }
+
+  // Render Owned
+  if (owned.length === 0) {
+    ownedListEl.innerHTML = '';
+    emptyOwnedEl.style.display = 'flex';
+  } else {
+    emptyOwnedEl.style.display = 'none';
+    ownedListEl.innerHTML = owned.map(renderRepoCard).join('');
+  }
+
+  attachRepoCardListeners();
+}
+
+function renderRepoCard(repo) {
+  const isWebhook = repo.monitoring_type === 'webhook';
+  const typeBadge = isWebhook 
+    ? `<span class="badge badge-webhook" title="Real-time push delivery via GitHub App Webhook">⚡ Webhook (Real-time)</span>`
+    : `<span class="badge badge-polling" title="Interval-based public API polling adapter">🔄 Polling (~${Math.round(repo.polling_interval_seconds / 60)}m)</span>`;
+
+  const healthBadge = `<span class="badge badge-${repo.health_status}">● ${repo.health_status.toUpperCase()}</span>`;
+
+  const prefs = repo.preferences || {};
+
+  return `
+    <div class="repo-card ${repo.enabled ? '' : 'disabled'}" data-id="${repo.id}">
+      <div class="repo-card-header">
+        <div class="repo-title-group">
+          <a href="https://github.com/${repo.full_name}" target="_blank" rel="noopener" class="repo-name-link">
+            ${repo.full_name} ↗
+          </a>
+          <div class="repo-badges">
+            ${typeBadge}
+            ${healthBadge}
+          </div>
+        </div>
+        <label class="switch" title="${repo.enabled ? 'Pause Monitoring' : 'Resume Monitoring'}">
+          <input type="checkbox" class="toggle-repo-btn" data-id="${repo.id}" ${repo.enabled ? 'checked' : ''}>
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <div class="repo-meta">
+        <span>${repo.health_message || 'Operational'}</span>
+        <span>${repo.last_polled_at ? timeAgo(repo.last_polled_at) : 'Never checked'}</span>
+      </div>
+
+      <!-- Event Preference Chips -->
+      <div class="event-prefs-container">
+        <div class="event-prefs-header">
+          <span>Active Discord Notification Events</span>
+        </div>
+        <div class="event-prefs-grid">
+          <label class="pref-chip ${prefs.notify_releases ? 'checked' : ''}">
+            <input type="checkbox" data-repo-id="${repo.id}" data-pref="notify_releases" ${prefs.notify_releases ? 'checked' : ''}>
+            🚀 Releases
+          </label>
+          <label class="pref-chip ${prefs.notify_pull_requests ? 'checked' : ''}">
+            <input type="checkbox" data-repo-id="${repo.id}" data-pref="notify_pull_requests" ${prefs.notify_pull_requests ? 'checked' : ''}>
+            🔀 PRs
+          </label>
+          <label class="pref-chip ${prefs.notify_issues ? 'checked' : ''}">
+            <input type="checkbox" data-repo-id="${repo.id}" data-pref="notify_issues" ${prefs.notify_issues ? 'checked' : ''}>
+            🐛 Issues
+          </label>
+          <label class="pref-chip ${prefs.notify_pushes ? 'checked' : ''}">
+            <input type="checkbox" data-repo-id="${repo.id}" data-pref="notify_pushes" ${prefs.notify_pushes ? 'checked' : ''}>
+            💻 Pushes
+          </label>
+          <label class="pref-chip ${prefs.notify_stars ? 'checked' : ''}">
+            <input type="checkbox" data-repo-id="${repo.id}" data-pref="notify_stars" ${prefs.notify_stars ? 'checked' : ''}>
+            ⭐ Stars
+          </label>
+          <label class="pref-chip ${prefs.notify_forks ? 'checked' : ''}">
+            <input type="checkbox" data-repo-id="${repo.id}" data-pref="notify_forks" ${prefs.notify_forks ? 'checked' : ''}>
+            🍴 Forks
+          </label>
+        </div>
+      </div>
+
+      <div class="repo-actions-footer">
+        <div>
+          ${!isWebhook ? `
+            <button class="btn btn-sm btn-ghost btn-poll-now" data-id="${repo.id}">
+              ⚡ Poll Now
+            </button>
+          ` : '<span style="font-size:11px;color:var(--text-dim)">Instant Webhook Mode</span>'}
+        </div>
+        <button class="btn btn-sm btn-danger btn-delete-repo" data-id="${repo.id}" data-name="${repo.full_name}">
+          🗑️ Remove
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+function attachRepoCardListeners() {
+  // Toggle enabled
+  document.querySelectorAll('.toggle-repo-btn').forEach(btn => {
+    btn.addEventListener('change', async (e) => {
+      const id = e.target.dataset.id;
+      try {
+        const res = await fetch(`/api/repositories/${id}/toggle`, { method: 'PUT' });
+        const data = await res.json();
+        if (data.success) {
+          showToast(`Monitoring ${data.repository.enabled ? 'enabled' : 'paused'} for ${data.repository.full_name}.`, 'info');
+          loadRepositories();
+        }
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    });
+  });
+
+  // Preference Chip click
+  document.querySelectorAll('.pref-chip input').forEach(input => {
+    input.addEventListener('change', async (e) => {
+      const repoId = e.target.dataset.repoId;
+      const prefKey = e.target.dataset.pref;
+      const isChecked = e.target.checked;
+
+      e.target.parentElement.classList.toggle('checked', isChecked);
+
+      try {
+        const res = await fetch(`/api/repositories/${repoId}/preferences`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ [prefKey]: isChecked })
+        });
+        const data = await res.json();
+        if (data.success) {
+          showToast('Updated notification preferences.', 'info');
+        }
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    });
+  });
+
+  // Poll Now
+  document.querySelectorAll('.btn-poll-now').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      const id = e.currentTarget.dataset.id;
+      btn.disabled = true;
+      btn.textContent = 'Polling...';
+      try {
+        const res = await fetch(`/api/repositories/${id}/poll`, { method: 'POST' });
+        const data = await res.json();
+        if (data.success) {
+          showToast(`Poll complete: ${data.result?.eventsCount || 0} event(s) checked.`, 'success');
+          loadData();
+        } else {
+          showToast(data.error || 'Poll failed', 'error');
+        }
+      } catch (err) {
+        showToast(err.message, 'error');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '⚡ Poll Now';
+      }
+    });
+  });
+
+  // Delete Repo
+  document.querySelectorAll('.btn-delete-repo').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      const id = e.currentTarget.dataset.id;
+      const name = e.currentTarget.dataset.name;
+      if (!confirm(`Are you sure you want to remove ${name} from GitHub Discord Bot?`)) {
+        return;
+      }
+      try {
+        const res = await fetch(`/api/repositories/${id}`, { method: 'DELETE' });
+        const data = await res.json();
+        if (data.success) {
+          showToast(`Removed ${name} from watchlist.`, 'info');
+          loadRepositories();
+        }
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    });
+  });
+}
+
+// Load Activity Events
+async function loadEvents() {
+  try {
+    const res = await fetch('/api/events?limit=40');
+    const data = await res.json();
+    if (data.success) {
+      appState.events = data.events;
+      renderEvents();
+    }
+  } catch (err) {
+    console.error('Failed to load events:', err);
+  }
+}
+
+function renderEvents() {
+  const events = appState.events;
+  document.getElementById('badgeActivity').textContent = events.length;
+
+  const deliveredCount = events.filter(e => e.delivered_to_discord).length;
+  document.getElementById('metricDeliveredEvents').textContent = deliveredCount;
+
+  if (events.length === 0) {
+    activityFeedListEl.innerHTML = '';
+    emptyActivityEl.style.display = 'flex';
+    return;
+  }
+
+  emptyActivityEl.style.display = 'none';
+  activityFeedListEl.innerHTML = events.map(e => {
+    const catClass = `cat-${e.event_type || 'default'}`;
+    const deliveryTag = e.delivered_to_discord 
+      ? '<span class="activity-delivery-tag delivery-success">✓ Dispatched to Discord</span>'
+      : '<span class="activity-delivery-tag delivery-skipped">○ Skipped (Filter / Duplicate)</span>';
+
+    return `
+      <div class="activity-item">
+        <span class="activity-badge-category ${catClass}">${e.event_type}</span>
+        <div class="activity-content">
+          <div class="activity-header">
+            <a href="${e.url || '#'}" target="_blank" rel="noopener" class="activity-title">
+              ${escapeHtml(e.title || 'Repository Activity')}
+            </a>
+            <span class="activity-time">${timeAgo(e.processed_at)}</span>
+          </div>
+          <div class="activity-summary">${escapeHtml(e.summary || '')}</div>
+          <div>${deliveryTag}</div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+// Load System Status
+async function loadStatus() {
+  try {
+    const res = await fetch('/api/status');
+    const data = await res.json();
+    if (data.success && data.summary) {
+      const summary = data.summary;
+
+      // Rate limit status
+      const rl = summary.rateLimit;
+      const rateLimitTextEl = document.getElementById('rateLimitText');
+      const rateLimitPill = document.getElementById('rateLimitPill');
+
+      if (rl && rl.limit) {
+        rateLimitTextEl.textContent = `API Limit: ${rl.remaining.toLocaleString()} / ${rl.limit.toLocaleString()}`;
+        if (rl.remaining < 200) {
+          rateLimitPill.className = 'status-pill rate-limit-pill degraded';
+        } else {
+          rateLimitPill.className = 'status-pill rate-limit-pill healthy';
+        }
+      } else {
+        rateLimitTextEl.textContent = 'API Limit: Ready';
+      }
+
+      // Discord status
+      const discordPill = document.getElementById('discordPill');
+      const discordText = document.getElementById('discordText');
+      if (summary.discordConfigured) {
+        discordPill.className = 'status-pill discord-pill connected';
+        discordText.textContent = 'Discord: Connected';
+      } else {
+        discordPill.className = 'status-pill discord-pill';
+        discordText.textContent = 'Discord: Standby (Mock)';
+      }
+    }
+  } catch (err) {
+    console.error('Failed to load status:', err);
+  }
+}
+
+// Load Settings
+async function loadSettings() {
+  try {
+    const res = await fetch('/api/settings');
+    const data = await res.json();
+    if (data.success && data.settings) {
+      const s = data.settings;
+      if (s.discord_webhook_url) {
+        document.getElementById('discordWebhookInput').value = s.discord_webhook_url;
+      }
+      if (s.github_token) {
+        document.getElementById('githubTokenInput').value = s.github_token;
+      }
+    }
+  } catch (err) {
+    console.error('Failed to load settings:', err);
+  }
+}
+
+// Auto-Discovery Trigger
+async function handleAutoDiscovery() {
+  const btn = document.getElementById('btnDiscoverOwned');
+  btn.disabled = true;
+  btn.textContent = 'Scanning GitHub...';
+
+  try {
+    const res = await fetch('/api/discover', { method: 'POST' });
+    const data = await res.json();
+    if (data.success) {
+      const count = data.result?.discovered || 0;
+      if (count > 0) {
+        showToast(`Discovered ${count} new public repository(s)!`, 'success');
+        loadRepositories();
+      } else {
+        showToast('Auto-discovery complete: No new public repositories found.', 'info');
+      }
+    } else {
+      showToast(data.error || 'Discovery failed. Please verify GitHub token.', 'error');
+    }
+  } catch (err) {
+    showToast(err.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '✨ Auto-Discover Now';
+  }
+}
+
+// Discord Webhook Test
+async function handleDiscordTest() {
+  const btn = document.getElementById('btnTestDiscord');
+  const customUrl = document.getElementById('discordWebhookInput').value.trim();
+
+  btn.disabled = true;
+  btn.textContent = 'Sending...';
+
+  try {
+    const res = await fetch('/api/settings/discord-test', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: customUrl })
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast('Discord test notification dispatched successfully!', 'success');
+    } else {
+      showToast(data.error || 'Failed to send Discord test message', 'error');
+    }
+  } catch (err) {
+    showToast(err.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Test Webhook';
+  }
+}
+
+// Toast Notifications Helper
+function showToast(message, type = 'info') {
+  const container = document.getElementById('toastContainer');
+  const toast = document.createElement('div');
+  toast.className = `toast ${type}`;
+  toast.textContent = message;
+  container.appendChild(toast);
+
+  setTimeout(() => {
+    toast.style.opacity = '0';
+    toast.style.transform = 'translateY(10px)';
+    toast.style.transition = 'all 0.3s ease';
+    setTimeout(() => toast.remove(), 300);
+  }, 4000);
+}
+
+// Utility: Time ago
+function timeAgo(dateString) {
+  if (!dateString) return '';
+  const date = new Date(dateString);
+  const now = new Date();
+  const seconds = Math.floor((now - date) / 1000);
+
+  if (seconds < 60) return `${Math.max(1, seconds)}s ago`;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+}
+
+function escapeHtml(str) {
+  if (!str) return '';
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}

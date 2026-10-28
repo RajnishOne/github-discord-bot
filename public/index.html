@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GitHub Discord Bot • Real-Time GitHub Monitoring & Discord Alerts</title>
+  <meta name="description" content="Monitor public GitHub repositories with real-time webhooks or intelligent public API polling and dispatch rich notifications to Discord.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app-background">
+    <div class="glow-orb orb-1"></div>
+    <div class="glow-orb orb-2"></div>
+  </div>
+
+  <div class="app-container">
+    <!-- Header -->
+    <header class="top-nav">
+      <div class="brand">
+        <div class="logo-pulse">
+          <span class="pulse-ring"></span>
+          <span class="pulse-dot"></span>
+        </div>
+        <div class="brand-text">
+          <h1>GitHub Discord Bot</h1>
+          <span class="brand-tag">GitHub Monitor & Discord Relay</span>
+        </div>
+      </div>
+
+      <div class="header-status">
+        <div class="status-pill rate-limit-pill" id="rateLimitPill" title="GitHub API Rate Limits">
+          <span class="pill-dot"></span>
+          <span id="rateLimitText">Rate Limit: Checking...</span>
+        </div>
+        <div class="status-pill discord-pill" id="discordPill" title="Discord Webhook Status">
+          <span class="pill-dot" id="discordDot"></span>
+          <span id="discordText">Discord: Standby</span>
+        </div>
+        <button class="btn btn-secondary btn-icon" id="btnSettings" title="Settings">
+          ⚙️ Settings
+        </button>
+        <button class="btn btn-primary" id="btnOpenAddModal">
+          <span class="btn-icon">+</span> Add Repository
+        </button>
+      </div>
+    </header>
+
+    <!-- Metrics Bar -->
+    <section class="metrics-grid">
+      <div class="metric-card">
+        <div class="metric-icon">📦</div>
+        <div class="metric-data">
+          <div class="metric-number" id="metricTotalRepos">0</div>
+          <div class="metric-label">Total Monitored</div>
+        </div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-icon">⚡</div>
+        <div class="metric-data">
+          <div class="metric-number" id="metricOwnedRepos">0</div>
+          <div class="metric-label">Owned (Webhooks)</div>
+        </div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-icon">🔄</div>
+        <div class="metric-data">
+          <div class="metric-number" id="metricWatchedRepos">0</div>
+          <div class="metric-label">Watched (Polling)</div>
+        </div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-icon">🔔</div>
+        <div class="metric-data">
+          <div class="metric-number" id="metricDeliveredEvents">0</div>
+          <div class="metric-label">Dispatched Events</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Navigation Tabs -->
+    <nav class="content-tabs">
+      <button class="tab-btn active" data-tab="watched-repos" id="tabWatched">
+        <span class="tab-icon">👁️</span> Watched Repositories
+        <span class="tab-badge" id="badgeWatched">0</span>
+      </button>
+      <button class="tab-btn" data-tab="my-repos" id="tabMyRepos">
+        <span class="tab-icon">👑</span> My Repositories
+        <span class="tab-badge" id="badgeOwned">0</span>
+      </button>
+      <button class="tab-btn" data-tab="activity-feed" id="tabActivity">
+        <span class="tab-icon">📡</span> Activity Feed
+        <span class="tab-badge" id="badgeActivity">0</span>
+      </button>
+    </nav>
+
+    <!-- Tab 1: Watched Repositories (External Public Repositories) -->
+    <section class="tab-content active" id="pane-watched-repos">
+      <div class="section-banner">
+        <div class="banner-info">
+          <h2>Watched Public Repositories</h2>
+          <p>Public repositories monitored through GitHub Discord Bot's adaptive GitHub API polling engine with ETag caching and zero-duplicate filtering.</p>
+        </div>
+        <div class="banner-actions">
+          <button class="btn btn-sm btn-ghost" id="btnRefreshWatched">🔄 Refresh</button>
+        </div>
+      </div>
+
+      <div class="repo-grid" id="watchedRepoList">
+        <!-- Rendered dynamically -->
+      </div>
+
+      <div class="empty-state" id="emptyWatched" style="display: none;">
+        <div class="empty-icon">🔭</div>
+        <h3>No watched repositories yet</h3>
+        <p>Add any public GitHub repository (e.g. <code>facebook/react</code>, <code>expressjs/express</code>) to monitor releases, issues, and PRs.</p>
+        <button class="btn btn-primary" onclick="openAddModal('watched')">+ Add Public Repository</button>
+      </div>
+    </section>
+
+    <!-- Tab 2: My Repositories (Owned) -->
+    <section class="tab-content" id="pane-my-repos">
+      <div class="section-banner">
+        <div class="banner-info">
+          <h2>My Public Repositories</h2>
+          <p>Your owned public repositories receiving instant push notifications via GitHub App webhooks. Newly created public repos are automatically discovered.</p>
+        </div>
+        <div class="banner-actions">
+          <button class="btn btn-sm btn-secondary" id="btnDiscoverOwned">
+            ✨ Auto-Discover Now
+          </button>
+        </div>
+      </div>
+
+      <div class="repo-grid" id="ownedRepoList">
+        <!-- Rendered dynamically -->
+      </div>
+
+      <div class="empty-state" id="emptyOwned" style="display: none;">
+        <div class="empty-icon">👑</div>
+        <h3>No owned repositories registered</h3>
+        <p>Connect your GitHub account or add your owned public repository to receive instant sub-second webhook notifications.</p>
+        <button class="btn btn-primary" onclick="openAddModal('owned')">+ Add Owned Repository</button>
+      </div>
+    </section>
+
+    <!-- Tab 3: Activity Feed -->
+    <section class="tab-content" id="pane-activity-feed">
+      <div class="section-banner">
+        <div class="banner-info">
+          <h2>Processed Event Stream</h2>
+          <p>Chronological feed of normalized events captured via webhooks and polling with Discord dispatch status.</p>
+        </div>
+        <div class="banner-actions">
+          <button class="btn btn-sm btn-ghost" id="btnRefreshActivity">🔄 Refresh Feed</button>
+        </div>
+      </div>
+
+      <div class="activity-list" id="activityFeedList">
+        <!-- Rendered dynamically -->
+      </div>
+
+      <div class="empty-state" id="emptyActivity" style="display: none;">
+        <div class="empty-icon">💤</div>
+        <h3>No events recorded yet</h3>
+        <p>Events will stream in as watched repositories publish releases, open PRs, or push commits.</p>
+      </div>
+    </section>
+  </div>
+
+  <!-- Add Repository Modal -->
+  <div class="modal-backdrop" id="addModal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>Add Repository to Monitor</h3>
+        <button class="btn-close" id="btnCloseAddModal">✕</button>
+      </div>
+
+      <form id="addRepoForm">
+        <div class="form-group">
+          <label for="repoInput">GitHub Repository</label>
+          <div class="input-with-validation">
+            <input 
+              type="text" 
+              id="repoInput" 
+              placeholder="e.g. facebook/react or https://github.com/expressjs/express" 
+              required
+              autocomplete="off"
+            >
+            <button type="button" class="btn btn-sm btn-secondary" id="btnValidateRepo">
+              Verify
+            </button>
+          </div>
+          <div class="field-hint">Supports full GitHub URLs or <code>owner/repository</code> format.</div>
+        </div>
+
+        <div class="verification-banner" id="verificationResult" style="display: none;">
+          <!-- Dynamically populated -->
+        </div>
+
+        <div class="form-group">
+          <label>Repository Ownership</label>
+          <div class="ownership-selector">
+            <label class="radio-card">
+              <input type="radio" name="repoOwnership" value="watched" checked>
+              <div class="radio-card-content">
+                <span class="radio-title">🔄 Watched Public Repository</span>
+                <span class="radio-desc">External repository monitored via public API polling (~5m interval).</span>
+              </div>
+            </label>
+            <label class="radio-card">
+              <input type="radio" name="repoOwnership" value="owned">
+              <div class="radio-card-content">
+                <span class="radio-title">⚡ My Owned Repository</span>
+                <span class="radio-desc">Repository owned by you with GitHub App webhook integration.</span>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Notification Categories</label>
+          <div class="category-checkbox-grid">
+            <label class="checkbox-pill">
+              <input type="checkbox" id="prefReleases" checked>
+              <span>🚀 Releases</span>
+            </label>
+            <label class="checkbox-pill">
+              <input type="checkbox" id="prefPRs" checked>
+              <span>🔀 Pull Requests</span>
+            </label>
+            <label class="checkbox-pill">
+              <input type="checkbox" id="prefIssues" checked>
+              <span>🐛 Issues</span>
+            </label>
+            <label class="checkbox-pill">
+              <input type="checkbox" id="prefPushes" checked>
+              <span>💻 Commits & Pushes</span>
+            </label>
+            <label class="checkbox-pill">
+              <input type="checkbox" id="prefStars">
+              <span>⭐ Stars</span>
+            </label>
+            <label class="checkbox-pill">
+              <input type="checkbox" id="prefForks">
+              <span>🍴 Forks</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="form-group" id="pollingIntervalGroup">
+          <label for="pollIntervalInput">Polling Frequency</label>
+          <select id="pollIntervalInput" class="form-select">
+            <option value="60">Every 1 minute (Fast-paced)</option>
+            <option value="180">Every 3 minutes</option>
+            <option value="300" selected>Every 5 minutes (Recommended)</option>
+            <option value="600">Every 10 minutes</option>
+            <option value="1800">Every 30 minutes</option>
+          </select>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-ghost" id="btnCancelAdd">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="btnSubmitAdd">Start Monitoring</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Settings Modal -->
+  <div class="modal-backdrop" id="settingsModal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>GitHub Discord Bot Configuration</h3>
+        <button class="btn-close" id="btnCloseSettingsModal">✕</button>
+      </div>
+
+      <form id="settingsForm">
+        <div class="form-group">
+          <label for="discordWebhookInput">Discord Webhook URL</label>
+          <div class="input-with-button">
+            <input 
+              type="url" 
+              id="discordWebhookInput" 
+              placeholder="https://discord.com/api/webhooks/..."
+            >
+            <button type="button" class="btn btn-sm btn-secondary" id="btnTestDiscord">
+              Test Webhook
+            </button>
+          </div>
+          <div class="field-hint">Incoming alerts and rich embeds will be broadcast to this Discord channel.</div>
+        </div>
+
+        <div class="form-group">
+          <label for="githubTokenInput">GitHub Personal Access Token (Optional)</label>
+          <input 
+            type="password" 
+            id="githubTokenInput" 
+            placeholder="ghp_••••••••••••••••••••"
+          >
+          <div class="field-hint">Increases your GitHub rate limit from 60 to <strong>5,000 requests/hour</strong> and enables auto-discovery of owned repos.</div>
+        </div>
+
+        <div class="form-group">
+          <label for="webhookSecretInput">GitHub App Webhook Secret</label>
+          <input 
+            type="password" 
+            id="webhookSecretInput" 
+            placeholder="••••••••••••••••••••"
+          >
+          <div class="field-hint">Used to verify HMAC-SHA256 signatures on inbound webhooks.</div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-ghost" id="btnCancelSettings">Close</button>
+          <button type="submit" class="btn btn-primary">Save Settings</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="toastContainer" class="toast-container"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>

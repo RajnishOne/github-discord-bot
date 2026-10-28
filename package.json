@@ -1,0 +1,31 @@
+{
+  "name": "github-discord-bot",
+  "version": "1.0.0",
+  "description": "Real-time GitHub repository activity monitoring and Discord notification dispatcher",
+  "main": "src/server.js",
+  "type": "module",
+  "bin": {
+    "github-discord-bot": "bin/bot-cli.js",
+    "bot": "bin/bot-cli.js",
+    "repopulse": "bin/repopulse-cli.js"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "cli": "node bin/bot-cli.js",
+    "test": "node --test tests/*.test.js"
+  },
+  "keywords": [
+    "github",
+    "monitoring",
+    "discord",
+    "webhooks",
+    "polling",
+    "github-discord-bot"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.21.2"
+  }
+}

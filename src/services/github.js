@@ -94,10 +94,22 @@ export class GitHubService {
    */
   async verifyRepository(owner, repo) {
     const url = `${this.baseUrl}/repos/${owner}/${repo}`;
-    const response = await this.fetchFn(url, {
-      method: 'GET',
-      headers: this.getHeaders()
-    });
+    let response;
+    try {
+      response = await this.fetchFn(url, {
+        method: 'GET',
+        headers: this.getHeaders()
+      });
+    } catch (err) {
+      if (err instanceof PrivateRepositoryError || err instanceof RepositoryNotFoundError || err instanceof GitHubRateLimitError) {
+        throw err;
+      }
+      const cause = err.cause?.code || err.cause?.message || '';
+      if (err.message === 'fetch failed' || cause.includes('ENOTFOUND') || cause.includes('EAI_AGAIN') || cause.includes('ECONNREFUSED')) {
+        throw new Error(`Unable to reach GitHub API (${cause || err.message}). The Docker container cannot connect to the internet or resolve DNS. Add "dns: [1.1.1.1, 8.8.8.8]" and "networks: [default, proxy]" to your docker-compose.yml.`);
+      }
+      throw err;
+    }
 
     const rateLimit = this.extractRateLimitHeaders(response.headers);
 

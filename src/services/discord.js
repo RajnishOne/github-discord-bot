@@ -310,8 +310,9 @@ export class DiscordService {
       };
     } catch (err) {
       let errorMsg = err.message;
-      if (err.message && err.message.includes('ENOTFOUND')) {
-        errorMsg = 'DNS resolution failed: Container cannot resolve discord.com. Check Docker network / DNS settings.';
+      const cause = err.cause?.code || err.cause?.message || '';
+      if (err.message === 'fetch failed' || cause.includes('ENOTFOUND') || cause.includes('EAI_AGAIN') || err.message?.includes('ENOTFOUND')) {
+        errorMsg = `DNS/Network resolution failed: Container cannot reach discord.com (${cause || err.message}). Add "dns: [1.1.1.1, 8.8.8.8]" and "networks: [default, proxy]" to docker-compose.yml.`;
       }
       return {
         success: false,

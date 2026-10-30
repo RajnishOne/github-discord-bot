@@ -124,7 +124,12 @@ services:
     ports:
       - 3000:3000
 
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
+
     networks:
+      - default
       - proxy
 
 networks:

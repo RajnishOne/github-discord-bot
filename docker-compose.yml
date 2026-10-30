@@ -1,9 +1,11 @@
 services:
   github-discord-bot:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    image: github-discord-bot:latest
+    # Pull pre-built multi-arch image from GitHub Container Registry (GHCR):
+    image: ghcr.io/rajnishone/github-discord-bot:latest
+    # Or build locally from source (uncomment if developing locally):
+    # build:
+    #   context: .
+    #   dockerfile: Dockerfile
     container_name: github-discord-bot
     restart: unless-stopped
     ports:

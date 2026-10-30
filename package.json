@@ -15,6 +15,11 @@
     "cli": "node bin/bot-cli.js",
     "test": "node --test tests/*.test.js"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/RajnishOne/github-discord-bot.git"
+  },
+  "homepage": "https://github.com/RajnishOne/github-discord-bot#readme",
   "keywords": [
     "github",
     "monitoring",
@@ -23,7 +28,7 @@
     "polling",
     "github-discord-bot"
   ],
-  "author": "",
+  "author": "Rajnish",
   "license": "MIT",
   "dependencies": {
     "express": "^4.21.2"

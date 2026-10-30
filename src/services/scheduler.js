@@ -3,7 +3,8 @@ import {
   getRepositoryById,
   updateRepository,
   addRepository,
-  getSetting
+  getSetting,
+  parseUtcTimestamp
 } from '../db/database.js';
 import { EventNormalizer } from './normalizer.js';
 
@@ -115,17 +116,36 @@ export class PollingScheduler {
 
       // Normal events received
       const events = result.events || [];
+      const repoCreatedTime = parseUtcTimestamp(repo.created_at);
+      const isFirstPoll = !repo.last_event_id && !repo.last_polled_at;
+
+      // Filter events: only process events that occurred AFTER the repository was added
+      // This strictly prevents spamming historical releases, PRs, issues on first addition!
+      const eligibleEvents = events.filter(ev => {
+        if (!repoCreatedTime) return true;
+        const evTime = parseUtcTimestamp(ev.created_at);
+        if (!evTime) return true;
+        return evTime >= repoCreatedTime;
+      });
+
       let deliveredCount = 0;
 
-      // Process events in chronological order (oldest to newest)
-      const chronologicalEvents = [...events].reverse();
+      // Process eligible events in chronological order (oldest to newest)
+      const chronologicalEvents = [...eligibleEvents].reverse();
 
       for (const ev of chronologicalEvents) {
         const normalized = EventNormalizer.normalizePollingEvent(ev, repo.full_name);
         if (normalized && this.pipeline) {
-          const outcome = await this.pipeline.processEvent(normalized);
+          const outcome = await this.pipeline.processEvent(normalized, true);
           if (outcome.delivered) deliveredCount++;
         }
+      }
+
+      const skippedCount = events.length - eligibleEvents.length;
+      let healthMessage = `Polled successfully: ${eligibleEvents.length} new event(s), ${deliveredCount} notified.`;
+      if (isFirstPoll && skippedCount > 0) {
+        healthMessage = `Initial baseline established (${skippedCount} past event(s) skipped). Monitoring for new events.`;
+        console.log(`[Scheduler] Initial baseline established for ${repo.full_name}: skipped ${skippedCount} past events, ${deliveredCount} new events.`);
       }
 
       updateRepository(repo.id, {
@@ -133,7 +153,7 @@ export class PollingScheduler {
         last_etag: result.etag,
         last_event_id: result.latestEventId,
         health_status: 'healthy',
-        health_message: `Polled successfully: ${events.length} new event(s), ${deliveredCount} notified.`
+        health_message: healthMessage
       });
 
       return {

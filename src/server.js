@@ -261,6 +261,13 @@ export function createServer(options = {}) {
         message: `Successfully added ${verified.fullName} to ${isOwned ? 'My Repositories' : 'Watched Repositories'}.`,
         repository: newRepo
       });
+
+      // Asynchronously establish baseline checkpoint for watched repository
+      if (!isOwned && scheduler) {
+        scheduler.pollRepository(newRepo).catch(err => {
+          console.warn(`[Scheduler] Initial baseline poll for ${newRepo.full_name}:`, err.message);
+        });
+      }
     } catch (err) {
       if (err.message && err.message.includes('UNIQUE constraint failed')) {
         return res.status(409).json({ success: false, error: 'Repository is already being monitored.' });

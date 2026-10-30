@@ -563,6 +563,89 @@ test('GitHub Discord Bot Comprehensive Test Suite', async (t) => {
     assert.equal(getRes.body.settings.discord_webhooks[0].name, 'Alerts');
   });
 
+  // -----------------------------------------------------------
+  // 11. Historical Event Suppression on Repository Addition
+  // -----------------------------------------------------------
+  await t.test('11. Historical Event Suppression on Repository Addition (Anti-Spam Baseline)', async () => {
+    setupTestDb();
+
+    // Repo added at t0
+    const repoCreatedAt = new Date('2026-10-30T10:00:00Z').toISOString();
+    const repo = addRepository({
+      owner: 'acme',
+      name: 'popular',
+      full_name: 'acme/popular',
+      is_owned: false,
+      monitoring_type: 'polling',
+      created_at: repoCreatedAt
+    });
+
+    const mockEventsHistory = [
+      {
+        id: 'ev-999',
+        type: 'ReleaseEvent',
+        created_at: '2026-10-30T09:59:00Z', // 1 min BEFORE addition (historical)
+        payload: {
+          action: 'published',
+          release: { id: 101, tag_name: 'v1.0.0', name: 'Old Release' }
+        }
+      },
+      {
+        id: 'ev-998',
+        type: 'IssuesEvent',
+        created_at: '2026-10-30T08:00:00Z', // 2 hours BEFORE addition (historical)
+        payload: {
+          action: 'opened',
+          issue: { number: 42, title: 'Old Issue' }
+        }
+      }
+    ];
+
+    let currentEvents = [...mockEventsHistory];
+
+    const mockFetch = async () => {
+      return {
+        ok: true,
+        status: 200,
+        headers: new Headers({ etag: '"etag-123"' }),
+        json: async () => currentEvents
+      };
+    };
+
+    const discord = new DiscordService({ mockMode: true });
+    const pipeline = new EventPipeline({ discordService: discord });
+    const gh = new GitHubService({ fetchFn: mockFetch });
+    const scheduler = new PollingScheduler({ githubService: gh, pipeline });
+
+    // FIRST POLL: Should establish baseline and skip both historical events!
+    const firstPollResult = await scheduler.pollRepository(repo);
+    assert.equal(firstPollResult.success, true);
+    assert.equal(firstPollResult.eventsCount, 2);
+    assert.equal(firstPollResult.deliveredCount, 0, 'Historical events must NOT be delivered');
+    assert.equal(discord.dispatchedLogs.length, 0, 'No Discord notifications should be sent for past events');
+
+    const updatedRepo = getRepositoryById(repo.id);
+    assert.equal(updatedRepo.last_event_id, 'ev-999', 'Latest event ID must be saved as checkpoint');
+    assert.ok(updatedRepo.health_message.includes('Initial baseline established'));
+
+    // SECOND POLL: A brand new release arrives AFTER repo addition
+    const newEvent = {
+      id: 'ev-1000',
+      type: 'ReleaseEvent',
+      created_at: '2026-10-30T10:05:00Z', // 5 mins AFTER addition (new)
+      payload: {
+        action: 'published',
+        release: { id: 102, tag_name: 'v1.1.0', name: 'Brand New Release' }
+      }
+    };
+    currentEvents = [newEvent, ...mockEventsHistory];
+
+    const secondPollResult = await scheduler.pollRepository(updatedRepo);
+    assert.equal(secondPollResult.success, true);
+    assert.equal(secondPollResult.deliveredCount, 1, 'New event must be delivered');
+    assert.equal(discord.dispatchedLogs.length, 1, 'Discord must receive the new event notification');
+  });
+
 });
 
 // Helper for testing express routes without network

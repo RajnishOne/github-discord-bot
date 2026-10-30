@@ -6,7 +6,8 @@ import {
   getPendingDeliveries,
   markDeliveryProcessing,
   markDeliverySuccess,
-  markDeliveryFailure
+  markDeliveryFailure,
+  parseUtcTimestamp
 } from '../db/database.js';
 
 export class EventPipeline {
@@ -93,6 +94,27 @@ export class EventPipeline {
         filteredOut: true,
         message: `Category "${event.category}" notifications disabled for ${event.repository}.`
       };
+    }
+
+    // Historical event suppression guard:
+    // Never send notifications for events that occurred before the repository was added
+    if (repo.created_at && event.timestamp) {
+      const repoCreatedTime = parseUtcTimestamp(repo.created_at);
+      const eventTime = parseUtcTimestamp(event.timestamp);
+      // Suppress if event timestamp is strictly before repo creation time (with 3-second grace buffer)
+      if (repoCreatedTime && eventTime && eventTime < (repoCreatedTime - 3000)) {
+        recordProcessedEvent({
+          ...event,
+          delivered_to_discord: 0,
+          discord_response_status: null
+        });
+        return {
+          delivered: false,
+          deduplicated: false,
+          filteredOut: true,
+          message: `Historical event suppressed: occurred before repository was added (${event.timestamp} < ${repo.created_at}).`
+        };
+      }
     }
 
     // 3. Durable persistence into SQLite outbox

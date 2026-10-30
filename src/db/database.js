@@ -127,6 +127,17 @@ export function setDatabase(db) {
 // Repository Operations
 // -------------------------------------------------------------
 
+export function parseUtcTimestamp(str) {
+  if (!str) return null;
+  if (typeof str !== 'string') {
+    const t = new Date(str).getTime();
+    return isNaN(t) ? null : t;
+  }
+  const normalized = str.includes('T') ? (str.endsWith('Z') ? str : str + 'Z') : str.replace(' ', 'T') + 'Z';
+  const time = new Date(normalized).getTime();
+  return isNaN(time) ? null : time;
+}
+
 export function addRepository(repoData) {
   const db = getDatabase();
 
@@ -134,11 +145,13 @@ export function addRepository(repoData) {
     throw new Error('Rejected: GitHub Discord Bot cannot monitor private repositories.');
   }
 
+  const nowIso = new Date().toISOString();
   const stmt = db.prepare(`
     INSERT INTO repositories (
       github_id, owner, name, full_name, is_owned, is_private, 
-      monitoring_type, enabled, polling_interval_seconds, health_status, health_message
-    ) VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?)
+      monitoring_type, enabled, polling_interval_seconds, health_status, health_message,
+      created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const result = stmt.run(
@@ -151,7 +164,9 @@ export function addRepository(repoData) {
     repoData.enabled !== undefined ? (repoData.enabled ? 1 : 0) : 1,
     repoData.polling_interval_seconds || 300,
     repoData.health_status || 'healthy',
-    repoData.health_message || null
+    repoData.health_message || null,
+    repoData.created_at || nowIso,
+    nowIso
   );
 
   const repoId = Number(result.lastInsertRowid);

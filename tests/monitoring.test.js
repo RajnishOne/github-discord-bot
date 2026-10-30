@@ -646,6 +646,50 @@ test('GitHub Discord Bot Comprehensive Test Suite', async (t) => {
     assert.equal(discord.dispatchedLogs.length, 1, 'Discord must receive the new event notification');
   });
 
+  // -----------------------------------------------------------
+  // 12. Edit Repository Configuration (Ownership, Polling Frequency, Categories)
+  // -----------------------------------------------------------
+  await t.test('12. Edit Repository Configuration (Ownership, Polling Frequency, Categories)', async () => {
+    setupTestDb();
+
+    const repo = addRepository({
+      owner: 'acme',
+      name: 'editable-tool',
+      full_name: 'acme/editable-tool',
+      is_owned: false,
+      monitoring_type: 'polling',
+      polling_interval_seconds: 300
+    });
+
+    const { app } = createServer({ skipDbInit: true });
+
+    // Edit polling interval, ownership, and notification categories
+    const editRes = await makeRequest(app, 'PUT', `/api/repositories/${repo.id}`, {
+      body: {
+        is_owned: true,
+        polling_interval_seconds: 600,
+        preferences: {
+          notify_releases: true,
+          notify_pull_requests: false,
+          notify_issues: true,
+          notify_pushes: true,
+          notify_comments: true,
+          notify_reviews: true
+        }
+      }
+    });
+
+    assert.equal(editRes.statusCode, 200);
+    assert.equal(editRes.body.success, true);
+    assert.equal(editRes.body.repository.is_owned, true);
+    assert.equal(editRes.body.repository.monitoring_type, 'webhook');
+    assert.equal(editRes.body.repository.polling_interval_seconds, 600);
+    assert.equal(editRes.body.repository.preferences.notify_pull_requests, false);
+    assert.equal(editRes.body.repository.preferences.notify_pushes, true);
+    assert.equal(editRes.body.repository.preferences.notify_comments, true);
+    assert.equal(editRes.body.repository.preferences.notify_reviews, true);
+  });
+
 });
 
 // Helper for testing express routes without network

@@ -18,9 +18,11 @@ const emptyActivityEl = document.getElementById('emptyActivity');
 
 const addModalEl = document.getElementById('addModal');
 const settingsModalEl = document.getElementById('settingsModal');
+const editRepoModalEl = document.getElementById('editRepoModal');
 
 const addRepoForm = document.getElementById('addRepoForm');
 const settingsForm = document.getElementById('settingsForm');
+const editRepoForm = document.getElementById('editRepoForm');
 
 const repoInputEl = document.getElementById('repoInput');
 const btnValidateRepo = document.getElementById('btnValidateRepo');
@@ -67,6 +69,9 @@ function setupModals() {
   document.getElementById('btnCloseSettingsModal').addEventListener('click', () => closeSettingsModal());
   document.getElementById('btnCancelSettings').addEventListener('click', () => closeSettingsModal());
 
+  document.getElementById('btnCloseEditModal').addEventListener('click', () => closeEditModal());
+  document.getElementById('btnCancelEdit').addEventListener('click', () => closeEditModal());
+
   document.getElementById('btnRefreshWatched').addEventListener('click', () => loadRepositories());
   document.getElementById('btnRefreshActivity').addEventListener('click', () => loadEvents());
 
@@ -99,6 +104,56 @@ function closeSettingsModal() {
   settingsModalEl.classList.remove('open');
 }
 
+function openEditModal(repoId) {
+  const repo = appState.repositories.find(r => String(r.id) === String(repoId));
+  if (!repo) return;
+
+  document.getElementById('editRepoId').value = repo.id;
+  document.getElementById('editRepoNameDisplay').textContent = repo.full_name;
+
+  const isOwned = Boolean(repo.is_owned);
+  const watchedRadio = document.getElementById('editRadioWatched');
+  const ownedRadio = document.getElementById('editRadioOwned');
+  if (isOwned) {
+    ownedRadio.checked = true;
+  } else {
+    watchedRadio.checked = true;
+  }
+
+  // Update polling frequency visibility
+  const editPollingGroup = document.getElementById('editPollingIntervalGroup');
+  editPollingGroup.style.display = isOwned ? 'none' : 'block';
+
+  // Set frequency
+  const intervalSelect = document.getElementById('editPollIntervalInput');
+  const intervalVal = String(repo.polling_interval_seconds || 300);
+  intervalSelect.value = intervalVal;
+  if (!Array.from(intervalSelect.options).some(o => o.value === intervalVal)) {
+    const opt = document.createElement('option');
+    opt.value = intervalVal;
+    opt.textContent = `Every ${Math.round(repo.polling_interval_seconds / 60)} minutes`;
+    intervalSelect.appendChild(opt);
+    intervalSelect.value = intervalVal;
+  }
+
+  // Set Preferences
+  const prefs = repo.preferences || {};
+  document.getElementById('editPrefReleases').checked = prefs.notify_releases !== 0;
+  document.getElementById('editPrefPRs').checked = prefs.notify_pull_requests !== 0;
+  document.getElementById('editPrefIssues').checked = prefs.notify_issues !== 0;
+  document.getElementById('editPrefPushes').checked = Boolean(prefs.notify_pushes);
+  document.getElementById('editPrefStars').checked = Boolean(prefs.notify_stars);
+  document.getElementById('editPrefForks').checked = Boolean(prefs.notify_forks);
+  document.getElementById('editPrefComments').checked = Boolean(prefs.notify_comments);
+  document.getElementById('editPrefReviews').checked = Boolean(prefs.notify_reviews);
+
+  editRepoModalEl.classList.add('open');
+}
+
+function closeEditModal() {
+  editRepoModalEl.classList.remove('open');
+}
+
 function updatePollingVisibility() {
   const isOwned = document.querySelector('input[name="repoOwnership"]:checked')?.value === 'owned';
   const group = document.getElementById('pollingIntervalGroup');
@@ -109,6 +164,16 @@ function updatePollingVisibility() {
 
 document.querySelectorAll('input[name="repoOwnership"]').forEach(el => {
   el.addEventListener('change', updatePollingVisibility);
+});
+
+document.querySelectorAll('input[name="editRepoOwnership"]').forEach(el => {
+  el.addEventListener('change', () => {
+    const isOwned = document.querySelector('input[name="editRepoOwnership"]:checked')?.value === 'owned';
+    const group = document.getElementById('editPollingIntervalGroup');
+    if (group) {
+      group.style.display = isOwned ? 'none' : 'block';
+    }
+  });
 });
 
 // Setup Form Handlers
@@ -179,7 +244,9 @@ function setupFormHandlers() {
       notify_issues: document.getElementById('prefIssues').checked,
       notify_pushes: document.getElementById('prefPushes').checked,
       notify_stars: document.getElementById('prefStars').checked,
-      notify_forks: document.getElementById('prefForks').checked
+      notify_forks: document.getElementById('prefForks').checked,
+      notify_comments: document.getElementById('prefComments')?.checked || false,
+      notify_reviews: document.getElementById('prefReviews')?.checked || false
     };
 
     const submitBtn = document.getElementById('btnSubmitAdd');
@@ -220,6 +287,61 @@ function setupFormHandlers() {
     } finally {
       submitBtn.disabled = false;
       submitBtn.textContent = 'Start Monitoring';
+    }
+  });
+
+  // Submit Edit Repository
+  editRepoForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const id = document.getElementById('editRepoId').value;
+    const isOwned = document.querySelector('input[name="editRepoOwnership"]:checked')?.value === 'owned';
+    const pollingInterval = parseInt(document.getElementById('editPollIntervalInput').value, 10) || 300;
+
+    const preferences = {
+      notify_releases: document.getElementById('editPrefReleases').checked,
+      notify_pull_requests: document.getElementById('editPrefPRs').checked,
+      notify_issues: document.getElementById('editPrefIssues').checked,
+      notify_pushes: document.getElementById('editPrefPushes').checked,
+      notify_stars: document.getElementById('editPrefStars').checked,
+      notify_forks: document.getElementById('editPrefForks').checked,
+      notify_comments: document.getElementById('editPrefComments').checked,
+      notify_reviews: document.getElementById('editPrefReviews').checked
+    };
+
+    const submitBtn = document.getElementById('btnSaveEditRepo');
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Saving...';
+
+    try {
+      const res = await fetch(`/api/repositories/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          is_owned: isOwned,
+          polling_interval_seconds: pollingInterval,
+          preferences
+        })
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        showToast(data.error || 'Failed to update repository', 'error');
+        return;
+      }
+
+      showToast(data.message || 'Configuration saved successfully!', 'success');
+      closeEditModal();
+      await loadRepositories();
+
+      // Switch to matching tab if ownership changed
+      const tabToActivate = isOwned ? 'tabMyRepos' : 'tabWatched';
+      document.getElementById(tabToActivate)?.click();
+    } catch (err) {
+      showToast(err.message, 'error');
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Save Changes';
     }
   });
 
@@ -406,16 +528,27 @@ function renderRepoCard(repo) {
             <input type="checkbox" data-repo-id="${repo.id}" data-pref="notify_forks" ${prefs.notify_forks ? 'checked' : ''}>
             🍴 Forks
           </label>
+          <label class="pref-chip ${prefs.notify_comments ? 'checked' : ''}">
+            <input type="checkbox" data-repo-id="${repo.id}" data-pref="notify_comments" ${prefs.notify_comments ? 'checked' : ''}>
+            💬 Comments
+          </label>
+          <label class="pref-chip ${prefs.notify_reviews ? 'checked' : ''}">
+            <input type="checkbox" data-repo-id="${repo.id}" data-pref="notify_reviews" ${prefs.notify_reviews ? 'checked' : ''}>
+            👁️ Reviews
+          </label>
         </div>
       </div>
 
       <div class="repo-actions-footer">
-        <div>
+        <div style="display: flex; gap: 8px; align-items: center;">
+          <button class="btn btn-sm btn-secondary btn-edit-repo" data-id="${repo.id}">
+            ⚙️ Configure
+          </button>
           ${!isWebhook ? `
             <button class="btn btn-sm btn-ghost btn-poll-now" data-id="${repo.id}">
               ⚡ Poll Now
             </button>
-          ` : '<span style="font-size:11px;color:var(--text-dim)">Instant Webhook Mode</span>'}
+          ` : '<span style="font-size:11px;color:var(--text-dim)">Instant Webhook</span>'}
         </div>
         <button class="btn btn-sm btn-danger btn-delete-repo" data-id="${repo.id}" data-name="${repo.full_name}">
           🗑️ Remove
@@ -489,6 +622,14 @@ function attachRepoCardListeners() {
         btn.disabled = false;
         btn.textContent = '⚡ Poll Now';
       }
+    });
+  });
+
+  // Edit Repo Configuration Modal
+  document.querySelectorAll('.btn-edit-repo').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const id = e.currentTarget.dataset.id;
+      openEditModal(id);
     });
   });
 

@@ -276,6 +276,60 @@ export function createServer(options = {}) {
     }
   });
 
+  app.put('/api/repositories/:id', (req, res) => {
+    try {
+      const repo = getRepositoryById(req.params.id);
+      if (!repo) {
+        return res.status(404).json({ success: false, error: 'Repository not found.' });
+      }
+
+      const { is_owned, polling_interval_seconds, preferences, enabled } = req.body;
+      const updates = {};
+
+      if (enabled !== undefined) {
+        updates.enabled = Boolean(enabled);
+      }
+
+      if (is_owned !== undefined) {
+        const isOwnedBool = Boolean(is_owned);
+        updates.is_owned = isOwnedBool ? 1 : 0;
+        updates.monitoring_type = isOwnedBool ? 'webhook' : 'polling';
+        updates.health_message = isOwnedBool 
+          ? 'Registered for GitHub App webhooks' 
+          : 'Monitored via public API polling adapter';
+      }
+
+      if (polling_interval_seconds !== undefined) {
+        const intervalSec = parseInt(polling_interval_seconds, 10);
+        if (isNaN(intervalSec) || intervalSec < 30) {
+          return res.status(400).json({ success: false, error: 'Polling interval must be at least 30 seconds.' });
+        }
+        updates.polling_interval_seconds = intervalSec;
+      }
+
+      if (preferences && typeof preferences === 'object') {
+        updates.preferences = preferences;
+      }
+
+      const updated = updateRepository(repo.id, updates);
+
+      // If switched to polling from webhook and no baseline checkpoint exists yet, run baseline poll
+      if (updates.monitoring_type === 'polling' && scheduler && !updated.last_event_id) {
+        scheduler.pollRepository(updated).catch(e => {
+          console.warn(`[Scheduler] Baseline poll after ownership switch for ${updated.full_name}:`, e.message);
+        });
+      }
+
+      res.json({
+        success: true,
+        message: `Successfully updated configuration for ${updated.full_name}.`,
+        repository: updated
+      });
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
   app.put('/api/repositories/:id/toggle', (req, res) => {
     try {
       const repo = getRepositoryById(req.params.id);

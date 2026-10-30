@@ -247,6 +247,14 @@
               <input type="checkbox" id="prefForks">
               <span>🍴 Forks</span>
             </label>
+            <label class="checkbox-pill">
+              <input type="checkbox" id="prefComments">
+              <span>💬 Comments</span>
+            </label>
+            <label class="checkbox-pill">
+              <input type="checkbox" id="prefReviews">
+              <span>👁️ Reviews</span>
+            </label>
           </div>
         </div>
 
@@ -254,16 +262,118 @@
           <label for="pollIntervalInput">Polling Frequency</label>
           <select id="pollIntervalInput" class="form-select">
             <option value="60">Every 1 minute (Fast-paced)</option>
+            <option value="120">Every 2 minutes</option>
             <option value="180">Every 3 minutes</option>
             <option value="300" selected>Every 5 minutes (Recommended)</option>
             <option value="600">Every 10 minutes</option>
+            <option value="900">Every 15 minutes</option>
             <option value="1800">Every 30 minutes</option>
+            <option value="3600">Every 1 hour</option>
           </select>
         </div>
 
         <div class="modal-footer">
           <button type="button" class="btn btn-ghost" id="btnCancelAdd">Cancel</button>
           <button type="submit" class="btn btn-primary" id="btnSubmitAdd">Start Monitoring</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Edit Repository Modal -->
+  <div class="modal-backdrop" id="editRepoModal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 id="editRepoModalTitle">Configure Repository</h3>
+        <button class="btn-close" id="btnCloseEditModal">✕</button>
+      </div>
+
+      <form id="editRepoForm">
+        <input type="hidden" id="editRepoId">
+
+        <div class="form-group">
+          <label>Repository</label>
+          <div style="font-family: var(--font-mono); font-size: 15px; font-weight: 600; color: var(--accent-cyan);" id="editRepoNameDisplay">
+            owner/repo
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Repository Ownership & Monitoring Mode</label>
+          <div class="ownership-selector">
+            <label class="radio-card">
+              <input type="radio" name="editRepoOwnership" value="watched" id="editRadioWatched">
+              <div class="radio-card-content">
+                <span class="radio-title">🔄 Watched Public Repository</span>
+                <span class="radio-desc">Monitored via public API polling adapter.</span>
+              </div>
+            </label>
+            <label class="radio-card">
+              <input type="radio" name="editRepoOwnership" value="owned" id="editRadioOwned">
+              <div class="radio-card-content">
+                <span class="radio-title">⚡ My Owned Repository</span>
+                <span class="radio-desc">Repository owned by you with GitHub App webhooks.</span>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        <div class="form-group" id="editPollingIntervalGroup">
+          <label for="editPollIntervalInput">Polling Frequency</label>
+          <select id="editPollIntervalInput" class="form-select">
+            <option value="60">Every 1 minute (Fast-paced)</option>
+            <option value="120">Every 2 minutes</option>
+            <option value="180">Every 3 minutes</option>
+            <option value="300">Every 5 minutes (Recommended)</option>
+            <option value="600">Every 10 minutes</option>
+            <option value="900">Every 15 minutes</option>
+            <option value="1800">Every 30 minutes</option>
+            <option value="3600">Every 1 hour</option>
+          </select>
+          <div class="field-hint">How often the bot polls GitHub for new activity.</div>
+        </div>
+
+        <div class="form-group">
+          <label>Notification Categories</label>
+          <div class="category-checkbox-grid">
+            <label class="checkbox-pill">
+              <input type="checkbox" id="editPrefReleases">
+              <span>🚀 Releases</span>
+            </label>
+            <label class="checkbox-pill">
+              <input type="checkbox" id="editPrefPRs">
+              <span>🔀 Pull Requests</span>
+            </label>
+            <label class="checkbox-pill">
+              <input type="checkbox" id="editPrefIssues">
+              <span>🐛 Issues</span>
+            </label>
+            <label class="checkbox-pill">
+              <input type="checkbox" id="editPrefPushes">
+              <span>💻 Commits & Pushes</span>
+            </label>
+            <label class="checkbox-pill">
+              <input type="checkbox" id="editPrefStars">
+              <span>⭐ Stars</span>
+            </label>
+            <label class="checkbox-pill">
+              <input type="checkbox" id="editPrefForks">
+              <span>🍴 Forks</span>
+            </label>
+            <label class="checkbox-pill">
+              <input type="checkbox" id="editPrefComments">
+              <span>💬 Comments</span>
+            </label>
+            <label class="checkbox-pill">
+              <input type="checkbox" id="editPrefReviews">
+              <span>👁️ Reviews</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-ghost" id="btnCancelEdit">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="btnSaveEditRepo">Save Changes</button>
         </div>
       </form>
     </div>

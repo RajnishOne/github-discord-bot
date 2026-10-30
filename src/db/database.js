@@ -108,6 +108,14 @@ export function initDatabase(dbPath = null) {
     );
   `);
 
+  // Safe migrations for existing databases
+  try {
+    db.exec(`ALTER TABLE repository_preferences ADD COLUMN notify_comments INTEGER NOT NULL DEFAULT 1;`);
+  } catch {}
+  try {
+    db.exec(`ALTER TABLE repository_preferences ADD COLUMN notify_reviews INTEGER NOT NULL DEFAULT 1;`);
+  } catch {}
+
   currentDb = db;
   return db;
 }
@@ -260,7 +268,7 @@ export function updateRepository(id, updates) {
   const allowedFields = [
     'enabled', 'polling_interval_seconds', 'last_polled_at', 
     'last_etag', 'last_event_id', 'health_status', 'health_message',
-    'monitoring_type'
+    'monitoring_type', 'is_owned'
   ];
 
   for (const field of allowedFields) {

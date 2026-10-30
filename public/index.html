@@ -82,13 +82,13 @@
 
     <!-- Navigation Tabs -->
     <nav class="content-tabs">
-      <button class="tab-btn active" data-tab="watched-repos" id="tabWatched">
-        <span class="tab-icon">👁️</span> Watched Repositories
-        <span class="tab-badge" id="badgeWatched">0</span>
-      </button>
-      <button class="tab-btn" data-tab="my-repos" id="tabMyRepos">
+      <button class="tab-btn active" data-tab="my-repos" id="tabMyRepos">
         <span class="tab-icon">👑</span> My Repositories
         <span class="tab-badge" id="badgeOwned">0</span>
+      </button>
+      <button class="tab-btn" data-tab="watched-repos" id="tabWatched">
+        <span class="tab-icon">👁️</span> Watched Repositories
+        <span class="tab-badge" id="badgeWatched">0</span>
       </button>
       <button class="tab-btn" data-tab="activity-feed" id="tabActivity">
         <span class="tab-icon">📡</span> Activity Feed
@@ -96,8 +96,34 @@
       </button>
     </nav>
 
-    <!-- Tab 1: Watched Repositories (External Public Repositories) -->
-    <section class="tab-content active" id="pane-watched-repos">
+    <!-- Tab 1: My Repositories (Owned) -->
+    <section class="tab-content active" id="pane-my-repos">
+      <div class="section-banner">
+        <div class="banner-info">
+          <h2>My Public Repositories</h2>
+          <p>Your owned public repositories receiving instant push notifications via webhooks or interval polling. Newly created public repos are automatically discovered.</p>
+        </div>
+        <div class="banner-actions">
+          <button class="btn btn-sm btn-secondary" id="btnDiscoverOwned">
+            ✨ Auto-Discover Now
+          </button>
+        </div>
+      </div>
+
+      <div class="repo-grid" id="ownedRepoList">
+        <!-- Rendered dynamically -->
+      </div>
+
+      <div class="empty-state" id="emptyOwned" style="display: none;">
+        <div class="empty-icon">👑</div>
+        <h3>No owned repositories registered</h3>
+        <p>Connect your GitHub account or add your owned public repository to receive notifications.</p>
+        <button class="btn btn-primary" onclick="openAddModal('owned')">+ Add Owned Repository</button>
+      </div>
+    </section>
+
+    <!-- Tab 2: Watched Repositories (External Public Repositories) -->
+    <section class="tab-content" id="pane-watched-repos">
       <div class="section-banner">
         <div class="banner-info">
           <h2>Watched Public Repositories</h2>
@@ -117,32 +143,6 @@
         <h3>No watched repositories yet</h3>
         <p>Add any public GitHub repository (e.g. <code>facebook/react</code>, <code>expressjs/express</code>) to monitor releases, issues, and PRs.</p>
         <button class="btn btn-primary" onclick="openAddModal('watched')">+ Add Public Repository</button>
-      </div>
-    </section>
-
-    <!-- Tab 2: My Repositories (Owned) -->
-    <section class="tab-content" id="pane-my-repos">
-      <div class="section-banner">
-        <div class="banner-info">
-          <h2>My Public Repositories</h2>
-          <p>Your owned public repositories receiving instant push notifications via GitHub App webhooks. Newly created public repos are automatically discovered.</p>
-        </div>
-        <div class="banner-actions">
-          <button class="btn btn-sm btn-secondary" id="btnDiscoverOwned">
-            ✨ Auto-Discover Now
-          </button>
-        </div>
-      </div>
-
-      <div class="repo-grid" id="ownedRepoList">
-        <!-- Rendered dynamically -->
-      </div>
-
-      <div class="empty-state" id="emptyOwned" style="display: none;">
-        <div class="empty-icon">👑</div>
-        <h3>No owned repositories registered</h3>
-        <p>Connect your GitHub account or add your owned public repository to receive instant sub-second webhook notifications.</p>
-        <button class="btn btn-primary" onclick="openAddModal('owned')">+ Add Owned Repository</button>
       </div>
     </section>
 

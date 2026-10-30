@@ -1,6 +1,6 @@
 // State
 let appState = {
-  activeTab: 'watched-repos',
+  activeTab: 'my-repos',
   repositories: [],
   events: [],
   status: null,

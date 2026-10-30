@@ -490,6 +490,79 @@ test('GitHub Discord Bot Comprehensive Test Suite', async (t) => {
     assert.match(pingRes.body.message, /Pong/);
   });
 
+  // -----------------------------------------------------------
+  // 6. Multiple Discord Webhooks and Web UI Settings API
+  // -----------------------------------------------------------
+  await t.test('10. Multiple Discord Webhooks Parallel Dispatch & Web UI Settings API', async () => {
+    setupTestDb();
+
+    const deliveredUrls = [];
+    const mockFetch = async (url) => {
+      deliveredUrls.push(url);
+      return {
+        ok: true,
+        status: 204,
+        json: async () => ({})
+      };
+    };
+
+    const discord = new DiscordService({
+      fetchFn: mockFetch,
+      webhooks: [
+        { id: 'wh_1', name: 'General', url: 'https://discord.com/api/webhooks/111/aaa', enabled: true },
+        { id: 'wh_2', name: 'Releases', url: 'https://discord.com/api/webhooks/222/bbb', enabled: true },
+        { id: 'wh_3', name: 'Disabled', url: 'https://discord.com/api/webhooks/333/ccc', enabled: false }
+      ]
+    });
+
+    assert.equal(discord.getActiveWebhooks().length, 2);
+    assert.equal(discord.getAllWebhooks().length, 3);
+
+    const testEvent = {
+      dedupKey: 'repo:push:123',
+      repository: 'alice/repo',
+      category: 'push',
+      title: '💻 Pushed 1 commit to main',
+      description: 'feat: add multiple webhooks',
+      url: 'https://github.com/alice/repo'
+    };
+
+    const dispatchResult = await discord.dispatchNotification(testEvent);
+    assert.equal(dispatchResult.success, true);
+    assert.equal(deliveredUrls.length, 2);
+    assert.ok(deliveredUrls.includes('https://discord.com/api/webhooks/111/aaa'));
+    assert.ok(deliveredUrls.includes('https://discord.com/api/webhooks/222/bbb'));
+
+    // Test Server Settings API endpoints
+    const { app } = createServer({ skipDbInit: true, discordService: discord });
+
+    // Save settings via POST /api/settings
+    const saveRes = await makeRequest(app, 'POST', '/api/settings', {
+      body: {
+        discord_webhooks: [
+          { id: 'wh_a', name: 'Alerts', url: 'https://discord.com/api/webhooks/999/xxx', enabled: true }
+        ],
+        github_owner: 'RajnishOne',
+        github_token: 'ghp_testToken12345678',
+        github_webhook_secret: 'secret123',
+        admin_api_key: 'adminkey456',
+        default_polling_interval: '180'
+      }
+    });
+
+    assert.equal(saveRes.statusCode, 200);
+    assert.equal(saveRes.body.success, true);
+
+    // Retrieve settings via GET /api/settings
+    const getRes = await makeRequest(app, 'GET', '/api/settings');
+    assert.equal(getRes.statusCode, 200);
+    assert.equal(getRes.body.settings.github_owner, 'RajnishOne');
+    assert.equal(getRes.body.settings.has_token, true);
+    assert.equal(getRes.body.settings.default_polling_interval, '180');
+    assert.equal(getRes.body.settings.discord_webhooks.length, 1);
+    assert.equal(getRes.body.settings.discord_webhooks[0].name, 'Alerts');
+  });
+
 });
 
 // Helper for testing express routes without network

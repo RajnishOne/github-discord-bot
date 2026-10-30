@@ -271,51 +271,100 @@
 
   <!-- Settings Modal -->
   <div class="modal-backdrop" id="settingsModal">
-    <div class="modal-card">
+    <div class="modal-card modal-card-lg">
       <div class="modal-header">
         <h3>GitHub Discord Bot Configuration</h3>
         <button class="btn-close" id="btnCloseSettingsModal">✕</button>
       </div>
 
       <form id="settingsForm">
-        <div class="form-group">
-          <label for="discordWebhookInput">Discord Webhook URL</label>
-          <div class="input-with-button">
-            <input 
-              type="url" 
-              id="discordWebhookInput" 
-              placeholder="https://discord.com/api/webhooks/..."
-            >
-            <button type="button" class="btn btn-sm btn-secondary" id="btnTestDiscord">
-              Test Webhook
-            </button>
-          </div>
-          <div class="field-hint">Incoming alerts and rich embeds will be broadcast to this Discord channel.</div>
+        <!-- Section 1: Multiple Discord Webhooks -->
+        <div class="settings-section-header">
+          <span class="settings-section-title">
+            <span>💬</span> Discord Webhook Channels
+          </span>
+          <button type="button" class="btn btn-xs btn-secondary" id="btnAddWebhookRow">
+            + Add Channel
+          </button>
+        </div>
+        <div class="field-hint" style="margin-bottom: 10px;">
+          Configure one or multiple Discord channels. All events will be broadcast in parallel to every active channel.
+        </div>
+
+        <div class="webhooks-list-container" id="discordWebhooksContainer">
+          <!-- Populated dynamically by app.js -->
+        </div>
+
+        <!-- Section 2: GitHub Account & Token -->
+        <div class="settings-section-header" style="margin-top: 24px;">
+          <span class="settings-section-title">
+            <span>🐙</span> GitHub Integration & Ownership
+          </span>
         </div>
 
         <div class="form-group">
-          <label for="githubTokenInput">GitHub Personal Access Token (Optional)</label>
+          <label for="githubOwnerInput">GitHub Username or Organization</label>
+          <input 
+            type="text" 
+            id="githubOwnerInput" 
+            placeholder="e.g. RajnishOne"
+            autocomplete="off"
+          >
+          <div class="field-hint">Your GitHub handle. Used for ownership verification and 1-click repository auto-discovery.</div>
+        </div>
+
+        <div class="form-group">
+          <label for="githubTokenInput">GitHub Personal Access Token (PAT)</label>
           <input 
             type="password" 
             id="githubTokenInput" 
             placeholder="ghp_••••••••••••••••••••"
           >
-          <div class="field-hint">Increases your GitHub rate limit from 60 to <strong>5,000 requests/hour</strong> and enables auto-discovery of owned repos.</div>
+          <div class="field-hint">Expands your GitHub API rate limit from 60 to <strong>5,000 requests/hour</strong> and enables 1-click auto-discovery.</div>
         </div>
 
         <div class="form-group">
-          <label for="webhookSecretInput">GitHub App Webhook Secret</label>
+          <label for="webhookSecretInput">GitHub App Webhook Secret (Optional)</label>
           <input 
             type="password" 
             id="webhookSecretInput" 
             placeholder="••••••••••••••••••••"
           >
-          <div class="field-hint">Used to verify HMAC-SHA256 signatures on inbound webhooks.</div>
+          <div class="field-hint">Used to verify HMAC-SHA256 signatures on inbound webhooks. Leave blank if only polling.</div>
+        </div>
+
+        <!-- Section 3: Advanced Preferences -->
+        <div class="settings-section-header" style="margin-top: 24px;">
+          <span class="settings-section-title">
+            <span>⚙️</span> Defaults & Security
+          </span>
+        </div>
+
+        <div class="form-group">
+          <label for="defaultPollingIntervalInput">Default Polling Frequency</label>
+          <select id="defaultPollingIntervalInput" class="form-select">
+            <option value="60">Every 1 minute (Fast-paced)</option>
+            <option value="180">Every 3 minutes</option>
+            <option value="300" selected>Every 5 minutes (Recommended)</option>
+            <option value="600">Every 10 minutes</option>
+            <option value="1800">Every 30 minutes</option>
+          </select>
+          <div class="field-hint">Default check interval for newly added watched public repositories.</div>
+        </div>
+
+        <div class="form-group">
+          <label for="adminApiKeyInput">Admin API Key (Optional)</label>
+          <input 
+            type="password" 
+            id="adminApiKeyInput" 
+            placeholder="Optional security key for /api/admin/*"
+          >
+          <div class="field-hint">Protects outbox queue retry endpoints. Leave blank to disable admin authentication.</div>
         </div>
 
         <div class="modal-footer">
           <button type="button" class="btn btn-ghost" id="btnCancelSettings">Close</button>
-          <button type="submit" class="btn btn-primary">Save Settings</button>
+          <button type="submit" class="btn btn-primary" id="btnSaveSettings">Save All Settings</button>
         </div>
       </form>
     </div>

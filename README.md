@@ -176,14 +176,22 @@ docker run -d \
 
 GitHub Discord Bot includes a modern, responsive web dashboard available on port `3000` (`http://localhost:3000` or `http://<your-server-ip>:3000`).
 
-### Initial Settings Setup
-1. Open the dashboard in your browser.
+### Initial Settings Setup in Web UI (Zero-Touch Container Config)
+1. Open the dashboard in your browser (`http://<your-server-ip>:3000`).
 2. In the top navigation bar, click **⚙️ Settings**.
-3. Fill in your configuration:
-   - **Discord Webhook URL:** Paste your channel's incoming webhook URL and click **Test Webhook** to send an instant operational test alert to your Discord channel.
-   - **GitHub Personal Access Token (Optional):** Enter a PAT (Personal Access Token) with `public_repo` or read scope. This expands your GitHub API rate limit from 60 to **5,000 requests/hour** and enables auto-discovery of your owned public repos.
-   - **GitHub App Webhook Secret (Optional):** Enter your webhook secret to cryptographically verify inbound webhooks.
-4. Click **Save Settings**.
+3. Configure your settings directly in the browser:
+   - **Discord Webhook Channels (Multiple Support):**
+     - Click **+ Add Channel** to configure one or more Discord channels (e.g. `#general-alerts`, `#releases`, `#dev-team`).
+     - Enter a friendly **Channel Label** and the **Webhook URL**.
+     - Click **Test** next to any channel to fire an instant test embed directly to that Discord channel.
+     - Toggle channels **Active / Inactive** or delete channels anytime without restarting Docker.
+     - Notifications are broadcast in parallel across all active channels.
+   - **GitHub Username or Organization (`GITHUB_OWNER`):** Set your GitHub handle (e.g. `RajnishOne`) to verify repository ownership and power 1-click auto-discovery.
+   - **GitHub Personal Access Token (PAT):** Enter your PAT with `public_repo` scope. This expands your GitHub API rate limit from 60 to **5,000 requests/hour** and enables auto-discovery.
+   - **GitHub App Webhook Secret (Optional):** Enter your secret to cryptographically verify inbound HMAC signatures on webhooks.
+   - **Default Polling Frequency:** Choose default interval for watched repos (1m, 3m, 5m recommended, 10m, 30m).
+   - **Admin API Key (Optional):** Set an optional secret to protect administrative queue endpoints, or leave empty to disable authentication.
+4. Click **Save All Settings**. Changes apply immediately in memory without container restarts.
 
 ---
 

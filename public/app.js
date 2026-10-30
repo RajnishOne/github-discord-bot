@@ -4,7 +4,8 @@ let appState = {
   repositories: [],
   events: [],
   status: null,
-  settings: null
+  settings: null,
+  discordWebhooks: []
 };
 
 // DOM Elements
@@ -70,7 +71,6 @@ function setupModals() {
   document.getElementById('btnRefreshActivity').addEventListener('click', () => loadEvents());
 
   document.getElementById('btnDiscoverOwned').addEventListener('click', handleAutoDiscovery);
-  document.getElementById('btnTestDiscord').addEventListener('click', handleDiscordTest);
 }
 
 function openAddModal(preferredType = 'watched') {
@@ -223,21 +223,49 @@ function setupFormHandlers() {
     }
   });
 
+  // Add Webhook Channel Row
+  const btnAddWh = document.getElementById('btnAddWebhookRow');
+  if (btnAddWh) {
+    btnAddWh.addEventListener('click', addDiscordWebhookRow);
+  }
+
   // Save Settings
   settingsForm.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const discordUrl = document.getElementById('discordWebhookInput').value.trim();
-    const githubToken = document.getElementById('githubTokenInput').value.trim();
-    const webhookSecret = document.getElementById('webhookSecretInput').value.trim();
+    const saveBtn = document.getElementById('btnSaveSettings');
+    if (saveBtn) {
+      saveBtn.disabled = true;
+      saveBtn.textContent = 'Saving...';
+    }
+
+    // Collect all webhooks from the DOM
+    syncWebhooksFromDOM();
+    const webhooks = appState.discordWebhooks
+      .map(w => ({
+        id: w.id,
+        name: (w.name || 'General').trim(),
+        url: (w.url || '').trim(),
+        enabled: Boolean(w.enabled)
+      }))
+      .filter(w => Boolean(w.url));
+
+    const githubOwner = document.getElementById('githubOwnerInput')?.value.trim() || '';
+    const githubToken = document.getElementById('githubTokenInput')?.value.trim() || '';
+    const webhookSecret = document.getElementById('webhookSecretInput')?.value.trim() || '';
+    const adminApiKey = document.getElementById('adminApiKeyInput')?.value.trim() || '';
+    const defaultInterval = document.getElementById('defaultPollingIntervalInput')?.value || '300';
 
     try {
       const res = await fetch('/api/settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          discord_webhook_url: discordUrl,
+          discord_webhooks: webhooks,
+          github_owner: githubOwner,
           github_token: githubToken,
-          github_webhook_secret: webhookSecret
+          github_webhook_secret: webhookSecret,
+          admin_api_key: adminApiKey,
+          default_polling_interval: defaultInterval
         })
       });
 
@@ -251,6 +279,11 @@ function setupFormHandlers() {
       }
     } catch (err) {
       showToast(err.message, 'error');
+    } finally {
+      if (saveBtn) {
+        saveBtn.disabled = false;
+        saveBtn.textContent = 'Save All Settings';
+      }
     }
   });
 }
@@ -562,7 +595,8 @@ async function loadStatus() {
       const discordText = document.getElementById('discordText');
       if (summary.discordConfigured) {
         discordPill.className = 'status-pill discord-pill connected';
-        discordText.textContent = 'Discord: Connected';
+        const count = summary.discordWebhooksCount || 1;
+        discordText.textContent = count > 1 ? `Discord: ${count} Channels` : 'Discord: Connected';
       } else {
         discordPill.className = 'status-pill discord-pill';
         discordText.textContent = 'Discord: Standby (Mock)';
@@ -573,6 +607,138 @@ async function loadStatus() {
   }
 }
 
+// -------------------------------------------------------------
+// Discord Webhooks Management
+// -------------------------------------------------------------
+
+function renderDiscordWebhooksList() {
+  const container = document.getElementById('discordWebhooksContainer');
+  if (!container) return;
+
+  container.innerHTML = '';
+  const webhooks = appState.discordWebhooks || [];
+
+  if (webhooks.length === 0) {
+    container.innerHTML = `
+      <div class="empty-webhooks-notice">
+        No Discord channels configured yet. Click <strong>+ Add Channel</strong> above to add a webhook.
+      </div>
+    `;
+    return;
+  }
+
+  webhooks.forEach((wh, index) => {
+    const card = document.createElement('div');
+    card.className = 'webhook-item-card';
+    card.dataset.id = wh.id || `wh_${index}`;
+
+    card.innerHTML = `
+      <div class="webhook-fields-row">
+        <div>
+          <input 
+            type="text" 
+            class="wh-name-input" 
+            placeholder="Channel Name" 
+            value="${escapeHtml(wh.name || `Channel ${index + 1}`)}" 
+            title="Channel Label (e.g. #general, #alerts)"
+          >
+        </div>
+        <div>
+          <input 
+            type="url" 
+            class="wh-url-input" 
+            placeholder="https://discord.com/api/webhooks/..." 
+            value="${escapeHtml(wh.url || '')}"
+            autocomplete="off"
+          >
+        </div>
+        <div>
+          <button type="button" class="btn btn-sm btn-secondary btn-test-wh" title="Send a test embed to this channel">
+            Test
+          </button>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <label class="webhook-active-toggle" title="Enable or disable delivery to this channel">
+            <input type="checkbox" class="wh-enabled-input" ${wh.enabled !== false ? 'checked' : ''}>
+            <span>Active</span>
+          </label>
+          <button type="button" class="btn btn-sm btn-ghost btn-remove-wh" title="Remove this channel" style="color: var(--accent-rose); padding: 4px 8px;">
+            ✕
+          </button>
+        </div>
+      </div>
+    `;
+
+    // Test button handler
+    const testBtn = card.querySelector('.btn-test-wh');
+    testBtn.addEventListener('click', async () => {
+      const url = card.querySelector('.wh-url-input')?.value.trim();
+      if (!url) {
+        showToast('Please enter a Discord Webhook URL first.', 'error');
+        return;
+      }
+      testBtn.disabled = true;
+      testBtn.textContent = 'Sending...';
+      try {
+        const res = await fetch('/api/settings/discord-test', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url })
+        });
+        const data = await res.json();
+        if (data.success) {
+          const chName = card.querySelector('.wh-name-input')?.value.trim() || 'Channel';
+          showToast(`Test notification sent to "${chName}" successfully!`, 'success');
+        } else {
+          showToast(data.error || 'Discord webhook test failed.', 'error');
+        }
+      } catch (err) {
+        showToast(err.message, 'error');
+      } finally {
+        testBtn.disabled = false;
+        testBtn.textContent = 'Test';
+      }
+    });
+
+    // Remove button handler
+    const removeBtn = card.querySelector('.btn-remove-wh');
+    removeBtn.addEventListener('click', () => {
+      syncWebhooksFromDOM();
+      appState.discordWebhooks = appState.discordWebhooks.filter(w => w.id !== wh.id);
+      renderDiscordWebhooksList();
+    });
+
+    container.appendChild(card);
+  });
+}
+
+function syncWebhooksFromDOM() {
+  const cards = document.querySelectorAll('.webhook-item-card');
+  const list = [];
+  cards.forEach(card => {
+    list.push({
+      id: card.dataset.id || `wh_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      name: card.querySelector('.wh-name-input')?.value.trim() || 'Channel',
+      url: card.querySelector('.wh-url-input')?.value.trim() || '',
+      enabled: card.querySelector('.wh-enabled-input')?.checked ?? true
+    });
+  });
+  appState.discordWebhooks = list;
+}
+
+function addDiscordWebhookRow() {
+  syncWebhooksFromDOM();
+  appState.discordWebhooks.push({
+    id: `wh_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+    name: `Channel ${appState.discordWebhooks.length + 1}`,
+    url: '',
+    enabled: true
+  });
+  renderDiscordWebhooksList();
+  const lastCard = document.querySelector('.webhook-item-card:last-child .wh-url-input');
+  if (lastCard) lastCard.focus();
+}
+
 // Load Settings
 async function loadSettings() {
   try {
@@ -580,11 +746,31 @@ async function loadSettings() {
     const data = await res.json();
     if (data.success && data.settings) {
       const s = data.settings;
-      if (s.discord_webhook_url) {
-        document.getElementById('discordWebhookInput').value = s.discord_webhook_url;
+      appState.discordWebhooks = s.discord_webhooks || [];
+      if (appState.discordWebhooks.length === 0) {
+        appState.discordWebhooks = [{
+          id: `wh_${Date.now()}`,
+          name: 'General Alerts',
+          url: '',
+          enabled: true
+        }];
       }
-      if (s.github_token) {
-        document.getElementById('githubTokenInput').value = s.github_token;
+      renderDiscordWebhooksList();
+
+      if (document.getElementById('githubOwnerInput')) {
+        document.getElementById('githubOwnerInput').value = s.github_owner || '';
+      }
+      if (document.getElementById('githubTokenInput')) {
+        document.getElementById('githubTokenInput').value = s.github_token || '';
+      }
+      if (document.getElementById('webhookSecretInput')) {
+        document.getElementById('webhookSecretInput').value = s.github_webhook_secret || '';
+      }
+      if (document.getElementById('adminApiKeyInput')) {
+        document.getElementById('adminApiKeyInput').value = s.admin_api_key || '';
+      }
+      if (document.getElementById('defaultPollingIntervalInput')) {
+        document.getElementById('defaultPollingIntervalInput').value = s.default_polling_interval || '300';
       }
     }
   } catch (err) {
@@ -617,34 +803,6 @@ async function handleAutoDiscovery() {
   } finally {
     btn.disabled = false;
     btn.textContent = '✨ Auto-Discover Now';
-  }
-}
-
-// Discord Webhook Test
-async function handleDiscordTest() {
-  const btn = document.getElementById('btnTestDiscord');
-  const customUrl = document.getElementById('discordWebhookInput').value.trim();
-
-  btn.disabled = true;
-  btn.textContent = 'Sending...';
-
-  try {
-    const res = await fetch('/api/settings/discord-test', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url: customUrl })
-    });
-    const data = await res.json();
-    if (data.success) {
-      showToast('Discord test notification dispatched successfully!', 'success');
-    } else {
-      showToast(data.error || 'Failed to send Discord test message', 'error');
-    }
-  } catch (err) {
-    showToast(err.message, 'error');
-  } finally {
-    btn.disabled = false;
-    btn.textContent = 'Test Webhook';
   }
 }
 

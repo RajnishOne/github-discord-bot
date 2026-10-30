@@ -1,13 +1,79 @@
 export class DiscordService {
   constructor(options = {}) {
-    this.webhookUrl = options.webhookUrl || null;
+    this.webhooks = [];
     this.fetchFn = options.fetchFn || globalThis.fetch;
     this.mockMode = options.mockMode || false;
     this.dispatchedLogs = [];
+
+    if (options.webhooks) {
+      this.setWebhooks(options.webhooks);
+    } else if (options.webhookUrl) {
+      this.setWebhookUrl(options.webhookUrl);
+    }
   }
 
   setWebhookUrl(url) {
-    this.webhookUrl = url;
+    if (!url) {
+      this.webhooks = [];
+      return;
+    }
+    // Supports comma or newline separated URLs, or a single URL
+    const urls = typeof url === 'string'
+      ? url.split(/[\n,]+/).map(u => u.trim()).filter(Boolean)
+      : Array.isArray(url) ? url : [url];
+
+    this.webhooks = urls.map((u, i) => {
+      if (typeof u === 'object' && u !== null) {
+        return {
+          id: u.id || `wh_${Date.now()}_${i}`,
+          name: u.name || `Webhook ${i + 1}`,
+          url: u.url || '',
+          enabled: u.enabled !== false
+        };
+      }
+      return {
+        id: `wh_${Date.now()}_${i}`,
+        name: `Webhook ${i + 1}`,
+        url: u,
+        enabled: true
+      };
+    }).filter(w => Boolean(w.url));
+  }
+
+  setWebhooks(webhooks) {
+    if (!Array.isArray(webhooks)) {
+      this.setWebhookUrl(webhooks);
+      return;
+    }
+    this.webhooks = webhooks.map((w, i) => {
+      if (typeof w === 'string') {
+        return {
+          id: `wh_${Date.now()}_${i}`,
+          name: `Webhook ${i + 1}`,
+          url: w.trim(),
+          enabled: true
+        };
+      }
+      return {
+        id: w.id || `wh_${Date.now()}_${i}`,
+        name: w.name ? w.name.trim() : `Webhook ${i + 1}`,
+        url: w.url ? w.url.trim() : '',
+        enabled: w.enabled !== false
+      };
+    }).filter(w => Boolean(w.url));
+  }
+
+  get webhookUrl() {
+    const active = this.getActiveWebhooks();
+    return active.length > 0 ? active[0].url : null;
+  }
+
+  getActiveWebhooks() {
+    return this.webhooks.filter(w => w.enabled && w.url);
+  }
+
+  getAllWebhooks() {
+    return this.webhooks;
   }
 
   setMockMode(enabled) {
@@ -112,7 +178,9 @@ export class DiscordService {
       payload
     });
 
-    if (this.mockMode || !this.webhookUrl) {
+    const activeWebhooks = this.getActiveWebhooks();
+
+    if (this.mockMode || activeWebhooks.length === 0) {
       return {
         success: true,
         mock: true,
@@ -121,14 +189,44 @@ export class DiscordService {
       };
     }
 
-    // Deliver to real Discord Webhook
-    return await this.sendWithRetry(this.webhookUrl, payload);
+    // Deliver to all active Discord Webhooks in parallel
+    const deliveryPromises = activeWebhooks.map(async (wh) => {
+      try {
+        const res = await this.sendWithRetry(wh.url, payload);
+        return { id: wh.id, name: wh.name, url: wh.url, ...res };
+      } catch (err) {
+        return { id: wh.id, name: wh.name, url: wh.url, success: false, error: err.message };
+      }
+    });
+
+    const results = await Promise.allSettled(deliveryPromises);
+    const resolved = results.map(r => r.status === 'fulfilled' ? r.value : { success: false, error: r.reason?.message });
+
+    const anySuccess = resolved.some(r => r.success);
+    const allFailed = resolved.every(r => !r.success);
+
+    if (allFailed && resolved.length > 0) {
+      const firstError = resolved[0].error || 'All Discord deliveries failed.';
+      const err = new Error(firstError);
+      err.deliveries = resolved;
+      throw err;
+    }
+
+    return {
+      success: anySuccess,
+      deliveries: resolved,
+      statusCode: 204,
+      payload
+    };
   }
 
   async sendTestNotification(customUrl = null) {
-    const targetUrl = customUrl || this.webhookUrl;
-    if (!targetUrl) {
-      throw new Error('Discord Webhook URL is not configured.');
+    const targetUrls = customUrl
+      ? [customUrl]
+      : this.getActiveWebhooks().map(w => w.url);
+
+    if (targetUrls.length === 0) {
+      throw new Error('No active Discord Webhook URL is configured.');
     }
 
     const testEmbed = {
@@ -149,7 +247,13 @@ export class DiscordService {
       allowed_mentions: { parse: [] }
     };
 
-    return await this.sendWithRetry(targetUrl, payload);
+    if (customUrl) {
+      return await this.sendWithRetry(customUrl, payload);
+    }
+
+    // Deliver to all targets in parallel
+    const results = await Promise.all(targetUrls.map(u => this.sendWithRetry(u, payload)));
+    return results[0];
   }
 
   async sendWithRetry(url, payload, retries = 1) {

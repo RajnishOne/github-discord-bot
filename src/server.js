@@ -47,12 +47,37 @@ export function createServer(options = {}) {
   }
 
   // Load configured credentials or environment variables
-  const discordUrl = getSetting('discord_webhook_url') || process.env.DISCORD_WEBHOOK_URL || '';
+  let initialWebhooks = [];
+  const storedWebhooksJson = getSetting('discord_webhooks');
+  if (storedWebhooksJson) {
+    try {
+      initialWebhooks = JSON.parse(storedWebhooksJson);
+    } catch {
+      initialWebhooks = [];
+    }
+  }
+
+  // Fallback to legacy single setting or env variable
+  if (initialWebhooks.length === 0) {
+    const legacyUrl = getSetting('discord_webhook_url') || process.env.DISCORD_WEBHOOK_URL || '';
+    if (legacyUrl) {
+      const splitUrls = legacyUrl.split(/[\n,]+/).map(u => u.trim()).filter(Boolean);
+      initialWebhooks = splitUrls.map((url, i) => ({
+        id: `wh_${Date.now()}_${i}`,
+        name: splitUrls.length > 1 ? `Channel ${i + 1}` : 'General Alerts',
+        url,
+        enabled: true
+      }));
+    }
+  }
+
   const githubToken = getSetting('github_token') || process.env.GITHUB_TOKEN || '';
   const webhookSecret = getSetting('github_webhook_secret') || process.env.GITHUB_WEBHOOK_SECRET || '';
+  const githubOwner = getSetting('github_owner') || process.env.GITHUB_OWNER || '';
+  const adminApiKey = getSetting('admin_api_key') || process.env.ADMIN_API_KEY || '';
 
   const githubService = options.githubService || new GitHubService({ token: githubToken });
-  const discordService = options.discordService || new DiscordService({ webhookUrl: discordUrl, mockMode: !discordUrl });
+  const discordService = options.discordService || new DiscordService({ webhooks: initialWebhooks, mockMode: initialWebhooks.length === 0 });
   const pipeline = options.pipeline || new EventPipeline({ discordService });
   const scheduler = options.scheduler || new PollingScheduler({ githubService, pipeline });
 
@@ -332,7 +357,7 @@ export function createServer(options = {}) {
   // -----------------------------------------------------------
 
   const authMiddleware = (req, res, next) => {
-    const adminKey = process.env.ADMIN_API_KEY;
+    const adminKey = getSetting('admin_api_key') || process.env.ADMIN_API_KEY;
     if (adminKey) {
       const provided = req.headers['x-api-key'] || req.query.api_key;
       if (provided !== adminKey) {
@@ -381,7 +406,8 @@ export function createServer(options = {}) {
       const active = allRepos.filter(r => r.enabled);
 
       const rateLimit = await githubService.getRateLimitStatus();
-      const discordConfigured = Boolean(getSetting('discord_webhook_url') || process.env.DISCORD_WEBHOOK_URL);
+      const activeWebhooks = discordService.getActiveWebhooks();
+      const discordConfigured = activeWebhooks.length > 0;
       const queueStatus = getQueueStatus();
 
       res.json({
@@ -392,8 +418,10 @@ export function createServer(options = {}) {
           watchedCount: watched.length,
           activeCount: active.length,
           discordConfigured,
+          discordWebhooksCount: activeWebhooks.length,
           rateLimit,
-          queue: queueStatus
+          queue: queueStatus,
+          githubOwner: getSetting('github_owner') || process.env.GITHUB_OWNER || ''
         }
       });
     } catch (err) {
@@ -403,42 +431,81 @@ export function createServer(options = {}) {
 
   app.get('/api/settings', (req, res) => {
     const settings = getAllSettings();
+    const webhooks = discordService.getAllWebhooks();
     res.json({
       success: true,
       settings: {
-        discord_webhook_url: settings.discord_webhook_url ? '••••••••' + settings.discord_webhook_url.slice(-8) : '',
-        github_token: settings.github_token ? '••••••••' + settings.github_token.slice(-4) : '',
-        has_token: Boolean(settings.github_token),
-        has_discord: Boolean(settings.discord_webhook_url),
-        default_polling_interval: settings.default_polling_interval || '300'
+        discord_webhooks: webhooks,
+        has_discord: discordService.getActiveWebhooks().length > 0,
+        github_owner: settings.github_owner || process.env.GITHUB_OWNER || '',
+        github_token: settings.github_token ? '••••••••' + settings.github_token.slice(-4) : (process.env.GITHUB_TOKEN ? '••••••••' : ''),
+        has_token: Boolean(settings.github_token || process.env.GITHUB_TOKEN),
+        github_webhook_secret: settings.github_webhook_secret ? '••••••••' + settings.github_webhook_secret.slice(-4) : (process.env.GITHUB_WEBHOOK_SECRET ? '••••••••' : ''),
+        has_webhook_secret: Boolean(settings.github_webhook_secret || process.env.GITHUB_WEBHOOK_SECRET),
+        admin_api_key: settings.admin_api_key ? '••••••••' : (process.env.ADMIN_API_KEY ? '••••••••' : ''),
+        has_admin_api_key: Boolean(settings.admin_api_key || process.env.ADMIN_API_KEY),
+        default_polling_interval: settings.default_polling_interval || process.env.DEFAULT_POLLING_INTERVAL || '300'
       }
     });
   });
 
   app.post('/api/settings', (req, res) => {
     try {
-      const { discord_webhook_url, github_token, github_webhook_secret, default_polling_interval } = req.body;
+      const {
+        discord_webhooks,
+        discord_webhook_url,
+        github_owner,
+        github_token,
+        github_webhook_secret,
+        admin_api_key,
+        default_polling_interval
+      } = req.body;
 
-      if (discord_webhook_url !== undefined && !discord_webhook_url.startsWith('••••')) {
+      if (discord_webhooks !== undefined) {
+        discordService.setWebhooks(discord_webhooks);
+        setSetting('discord_webhooks', JSON.stringify(discordService.getAllWebhooks()));
+        if (discordService.webhookUrl) {
+          setSetting('discord_webhook_url', discordService.webhookUrl);
+        }
+        discordService.setMockMode(discordService.getActiveWebhooks().length === 0);
+      } else if (discord_webhook_url !== undefined && !discord_webhook_url.startsWith('••••')) {
         setSetting('discord_webhook_url', discord_webhook_url);
         discordService.setWebhookUrl(discord_webhook_url);
+        setSetting('discord_webhooks', JSON.stringify(discordService.getAllWebhooks()));
         discordService.setMockMode(!discord_webhook_url);
       }
 
+      if (github_owner !== undefined) {
+        setSetting('github_owner', github_owner.trim());
+      }
+
       if (github_token !== undefined && !github_token.startsWith('••••')) {
-        setSetting('github_token', github_token);
-        githubService.setToken(github_token);
+        setSetting('github_token', github_token.trim());
+        githubService.setToken(github_token.trim());
       }
 
       if (github_webhook_secret !== undefined && !github_webhook_secret.startsWith('••••')) {
-        setSetting('github_webhook_secret', github_webhook_secret);
+        setSetting('github_webhook_secret', github_webhook_secret.trim());
+      }
+
+      if (admin_api_key !== undefined && !admin_api_key.startsWith('••••')) {
+        setSetting('admin_api_key', admin_api_key.trim());
+        process.env.ADMIN_API_KEY = admin_api_key.trim();
       }
 
       if (default_polling_interval !== undefined) {
-        setSetting('default_polling_interval', default_polling_interval);
+        setSetting('default_polling_interval', String(default_polling_interval));
       }
 
-      res.json({ success: true, message: 'Settings saved successfully.' });
+      res.json({
+        success: true,
+        message: 'Settings saved successfully.',
+        settings: {
+          has_token: Boolean(getSetting('github_token') || process.env.GITHUB_TOKEN),
+          has_discord: discordService.getActiveWebhooks().length > 0,
+          github_owner: getSetting('github_owner') || process.env.GITHUB_OWNER || ''
+        }
+      });
     } catch (err) {
       res.status(500).json({ success: false, error: err.message });
     }
@@ -446,9 +513,12 @@ export function createServer(options = {}) {
 
   app.post('/api/settings/discord-test', async (req, res) => {
     try {
-      const url = req.body.url || getSetting('discord_webhook_url');
+      const url = req.body.url;
       const result = await discordService.sendTestNotification(url);
-      res.json({ success: true, result });
+      if (result && result.success === false) {
+        return res.status(400).json({ success: false, error: result.error || 'Discord webhook test failed.' });
+      }
+      res.json({ success: true, message: 'Discord test notification sent successfully!', result });
     } catch (err) {
       res.status(400).json({ success: false, error: err.message });
     }

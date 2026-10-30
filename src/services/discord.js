@@ -164,8 +164,8 @@ export class DiscordService {
   async dispatchNotification(event) {
     const embed = this.createEmbed(event);
     const payload = {
-      username: 'GitHub Discord Bot',
-      avatar_url: 'https://raw.githubusercontent.com/primer/octicons/main/icons/pulse-24.svg',
+      username: 'GitHub Bot',
+      avatar_url: 'https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png',
       embeds: [embed],
       allowed_mentions: {
         parse: [] // Disable @everyone, @here, and user/role mentions
@@ -242,7 +242,8 @@ export class DiscordService {
     };
 
     const payload = {
-      username: 'GitHub Discord Bot',
+      username: 'GitHub Bot',
+      avatar_url: 'https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png',
       embeds: [testEmbed],
       allowed_mentions: { parse: [] }
     };

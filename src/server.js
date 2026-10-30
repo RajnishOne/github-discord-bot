@@ -514,12 +514,18 @@ export function createServer(options = {}) {
   app.post('/api/settings/discord-test', async (req, res) => {
     try {
       const url = req.body.url;
+      const masked = url ? url.replace(/webhooks\/(\d+)\/([A-Za-z0-9_-]+)/, 'webhooks/$1/****') : 'default';
+      console.log(`[Discord Test] Testing webhook URL: ${masked}`);
+
       const result = await discordService.sendTestNotification(url);
       if (result && result.success === false) {
+        console.error(`[Discord Test] Delivery failed:`, result.error);
         return res.status(400).json({ success: false, error: result.error || 'Discord webhook test failed.' });
       }
+      console.log(`[Discord Test] Successfully delivered test notification.`);
       res.json({ success: true, message: 'Discord test notification sent successfully!', result });
     } catch (err) {
+      console.error(`[Discord Test] Error:`, err.message);
       res.status(400).json({ success: false, error: err.message });
     }
   });

@@ -677,6 +677,12 @@ function renderDiscordWebhooksList() {
         showToast('Please enter a Discord Webhook URL first.', 'error');
         return;
       }
+
+      const discordRegex = /^https:\/\/(?:ptb\.|canary\.)?discord(?:app)?\.com\/api\/webhooks\/\d+\/[a-zA-Z0-9_-]+/;
+      if (!discordRegex.test(url)) {
+        showToast('Incomplete Webhook URL! It must include both ID and Token (https://discord.com/api/webhooks/<ID>/<TOKEN>). In Discord, click "Copy Webhook URL".', 'error');
+        return;
+      }
       testBtn.disabled = true;
       testBtn.textContent = 'Sending...';
       try {
@@ -809,9 +815,11 @@ async function handleAutoDiscovery() {
 // Toast Notifications Helper
 function showToast(message, type = 'info') {
   const container = document.getElementById('toastContainer');
+  if (!container) return;
   const toast = document.createElement('div');
   toast.className = `toast ${type}`;
-  toast.textContent = message;
+  const icon = type === 'success' ? '✅' : type === 'error' ? '❌' : 'ℹ️';
+  toast.innerHTML = `<span>${icon}</span><span style="flex: 1; word-break: break-word;">${escapeHtml(message)}</span>`;
   container.appendChild(toast);
 
   setTimeout(() => {
@@ -819,7 +827,7 @@ function showToast(message, type = 'info') {
     toast.style.transform = 'translateY(10px)';
     toast.style.transition = 'all 0.3s ease';
     setTimeout(() => toast.remove(), 300);
-  }, 4000);
+  }, 6000);
 }
 
 // Utility: Time ago

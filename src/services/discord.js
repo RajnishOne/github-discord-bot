@@ -257,8 +257,22 @@ export class DiscordService {
   }
 
   async sendWithRetry(url, payload, retries = 1) {
+    if (!url || typeof url !== 'string') {
+      return { success: false, statusCode: 400, error: 'Discord Webhook URL is required.' };
+    }
+
+    const trimmedUrl = url.trim();
+    const discordWebhookRegex = /^https:\/\/(?:ptb\.|canary\.)?discord(?:app)?\.com\/api\/webhooks\/\d+\/[a-zA-Z0-9_-]+/;
+    if (!discordWebhookRegex.test(trimmedUrl)) {
+      return {
+        success: false,
+        statusCode: 400,
+        error: 'Incomplete Discord Webhook URL. It must include both the Webhook ID and Secret Token (e.g. https://discord.com/api/webhooks/1234567890/abcdefgh...). Make sure to click "Copy Webhook URL" inside Discord Channel Settings.'
+      };
+    }
+
     try {
-      const response = await this.fetchFn(url, {
+      const response = await this.fetchFn(trimmedUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -269,16 +283,24 @@ export class DiscordService {
         const retryAfterSec = body.retry_after || 2;
         if (retryAfterSec <= 5) {
           await new Promise(resolve => setTimeout(resolve, retryAfterSec * 1000));
-          return this.sendWithRetry(url, payload, retries - 1);
+          return this.sendWithRetry(trimmedUrl, payload, retries - 1);
         }
       }
 
       if (!response.ok) {
         const text = await response.text();
+        let userMessage = `Discord Webhook error (${response.status}): ${text}`;
+        if (response.status === 404) {
+          userMessage = `Discord returned 404 (Unknown Webhook). The webhook ID does not exist or was deleted.`;
+        } else if (response.status === 401) {
+          userMessage = `Discord returned 401 (Unauthorized). The webhook secret token is invalid.`;
+        } else if (response.status === 405) {
+          userMessage = `Discord returned 405 (Method Not Allowed). The URL is missing the webhook secret token.`;
+        }
         return {
           success: false,
           statusCode: response.status,
-          error: `Discord Webhook error (${response.status}): ${text}`
+          error: userMessage
         };
       }
 
@@ -287,10 +309,14 @@ export class DiscordService {
         statusCode: response.status
       };
     } catch (err) {
+      let errorMsg = err.message;
+      if (err.message && err.message.includes('ENOTFOUND')) {
+        errorMsg = 'DNS resolution failed: Container cannot resolve discord.com. Check Docker network / DNS settings.';
+      }
       return {
         success: false,
         statusCode: 500,
-        error: err.message
+        error: errorMsg
       };
     }
   }

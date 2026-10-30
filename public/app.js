@@ -112,6 +112,8 @@ function openEditModal(repoId) {
   document.getElementById('editRepoNameDisplay').textContent = repo.full_name;
 
   const isOwned = Boolean(repo.is_owned);
+  const isWebhook = repo.monitoring_type === 'webhook';
+
   const watchedRadio = document.getElementById('editRadioWatched');
   const ownedRadio = document.getElementById('editRadioOwned');
   if (isOwned) {
@@ -120,9 +122,17 @@ function openEditModal(repoId) {
     watchedRadio.checked = true;
   }
 
-  // Update polling frequency visibility
+  const modePollingRadio = document.getElementById('editRadioModePolling');
+  const modeWebhookRadio = document.getElementById('editRadioModeWebhook');
+  if (isWebhook) {
+    modeWebhookRadio.checked = true;
+  } else {
+    modePollingRadio.checked = true;
+  }
+
+  // Update polling frequency visibility based on monitoring mode
   const editPollingGroup = document.getElementById('editPollingIntervalGroup');
-  editPollingGroup.style.display = isOwned ? 'none' : 'block';
+  editPollingGroup.style.display = isWebhook ? 'none' : 'block';
 
   // Set frequency
   const intervalSelect = document.getElementById('editPollIntervalInput');
@@ -155,23 +165,23 @@ function closeEditModal() {
 }
 
 function updatePollingVisibility() {
-  const isOwned = document.querySelector('input[name="repoOwnership"]:checked')?.value === 'owned';
+  const isPolling = document.querySelector('input[name="repoMonitoringMode"]:checked')?.value === 'polling';
   const group = document.getElementById('pollingIntervalGroup');
   if (group) {
-    group.style.display = isOwned ? 'none' : 'block';
+    group.style.display = isPolling ? 'block' : 'none';
   }
 }
 
-document.querySelectorAll('input[name="repoOwnership"]').forEach(el => {
+document.querySelectorAll('input[name="repoMonitoringMode"]').forEach(el => {
   el.addEventListener('change', updatePollingVisibility);
 });
 
-document.querySelectorAll('input[name="editRepoOwnership"]').forEach(el => {
+document.querySelectorAll('input[name="editRepoMode"]').forEach(el => {
   el.addEventListener('change', () => {
-    const isOwned = document.querySelector('input[name="editRepoOwnership"]:checked')?.value === 'owned';
+    const isPolling = document.querySelector('input[name="editRepoMode"]:checked')?.value === 'polling';
     const group = document.getElementById('editPollingIntervalGroup');
     if (group) {
-      group.style.display = isOwned ? 'none' : 'block';
+      group.style.display = isPolling ? 'block' : 'none';
     }
   });
 });
@@ -236,6 +246,7 @@ function setupFormHandlers() {
     if (!input) return;
 
     const isOwned = document.querySelector('input[name="repoOwnership"]:checked')?.value === 'owned';
+    const monitoringType = document.querySelector('input[name="repoMonitoringMode"]:checked')?.value || 'polling';
     const pollingInterval = parseInt(document.getElementById('pollIntervalInput').value, 10) || 300;
 
     const preferences = {
@@ -260,6 +271,7 @@ function setupFormHandlers() {
         body: JSON.stringify({
           input,
           is_owned: isOwned,
+          monitoring_type: monitoringType,
           polling_interval_seconds: pollingInterval,
           preferences
         })
@@ -295,6 +307,7 @@ function setupFormHandlers() {
     e.preventDefault();
     const id = document.getElementById('editRepoId').value;
     const isOwned = document.querySelector('input[name="editRepoOwnership"]:checked')?.value === 'owned';
+    const monitoringType = document.querySelector('input[name="editRepoMode"]:checked')?.value || 'polling';
     const pollingInterval = parseInt(document.getElementById('editPollIntervalInput').value, 10) || 300;
 
     const preferences = {
@@ -318,6 +331,7 @@ function setupFormHandlers() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           is_owned: isOwned,
+          monitoring_type: monitoringType,
           polling_interval_seconds: pollingInterval,
           preferences
         })

@@ -238,7 +238,7 @@ export function createServer(options = {}) {
       }
 
       const isOwned = Boolean(is_owned);
-      const monitoringType = isOwned ? 'webhook' : 'polling';
+      const monitoringType = req.body.monitoring_type || (isOwned ? 'webhook' : 'polling');
 
       const newRepo = addRepository({
         github_id: verified.id,
@@ -250,7 +250,7 @@ export function createServer(options = {}) {
         enabled: true,
         polling_interval_seconds: polling_interval_seconds || 300,
         health_status: 'healthy',
-        health_message: isOwned 
+        health_message: monitoringType === 'webhook'
           ? 'Registered for GitHub App webhooks' 
           : 'Monitored via public API polling adapter',
         preferences
@@ -262,8 +262,8 @@ export function createServer(options = {}) {
         repository: newRepo
       });
 
-      // Asynchronously establish baseline checkpoint for watched repository
-      if (!isOwned && scheduler) {
+      // Asynchronously establish baseline checkpoint if polling mode
+      if (monitoringType === 'polling' && scheduler) {
         scheduler.pollRepository(newRepo).catch(err => {
           console.warn(`[Scheduler] Initial baseline poll for ${newRepo.full_name}:`, err.message);
         });
@@ -283,7 +283,7 @@ export function createServer(options = {}) {
         return res.status(404).json({ success: false, error: 'Repository not found.' });
       }
 
-      const { is_owned, polling_interval_seconds, preferences, enabled } = req.body;
+      const { is_owned, monitoring_type, polling_interval_seconds, preferences, enabled } = req.body;
       const updates = {};
 
       if (enabled !== undefined) {
@@ -291,12 +291,16 @@ export function createServer(options = {}) {
       }
 
       if (is_owned !== undefined) {
-        const isOwnedBool = Boolean(is_owned);
-        updates.is_owned = isOwnedBool ? 1 : 0;
-        updates.monitoring_type = isOwnedBool ? 'webhook' : 'polling';
-        updates.health_message = isOwnedBool 
-          ? 'Registered for GitHub App webhooks' 
+        updates.is_owned = Boolean(is_owned) ? 1 : 0;
+      }
+
+      if (monitoring_type !== undefined) {
+        updates.monitoring_type = monitoring_type === 'webhook' ? 'webhook' : 'polling';
+        updates.health_message = updates.monitoring_type === 'webhook'
+          ? 'Registered for GitHub App webhooks'
           : 'Monitored via public API polling adapter';
+      } else if (is_owned !== undefined && repo.monitoring_type === undefined) {
+        updates.monitoring_type = updates.is_owned ? 'webhook' : 'polling';
       }
 
       if (polling_interval_seconds !== undefined) {

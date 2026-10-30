@@ -667,6 +667,7 @@ test('GitHub Discord Bot Comprehensive Test Suite', async (t) => {
     const editRes = await makeRequest(app, 'PUT', `/api/repositories/${repo.id}`, {
       body: {
         is_owned: true,
+        monitoring_type: 'polling',
         polling_interval_seconds: 600,
         preferences: {
           notify_releases: true,
@@ -682,7 +683,7 @@ test('GitHub Discord Bot Comprehensive Test Suite', async (t) => {
     assert.equal(editRes.statusCode, 200);
     assert.equal(editRes.body.success, true);
     assert.equal(editRes.body.repository.is_owned, true);
-    assert.equal(editRes.body.repository.monitoring_type, 'webhook');
+    assert.equal(editRes.body.repository.monitoring_type, 'polling');
     assert.equal(editRes.body.repository.polling_interval_seconds, 600);
     assert.equal(editRes.body.repository.preferences.notify_pull_requests, false);
     assert.equal(editRes.body.repository.preferences.notify_pushes, true);

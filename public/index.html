@@ -206,15 +206,35 @@
             <label class="radio-card">
               <input type="radio" name="repoOwnership" value="watched" checked>
               <div class="radio-card-content">
-                <span class="radio-title">🔄 Watched Public Repository</span>
-                <span class="radio-desc">External repository monitored via public API polling (~5m interval).</span>
+                <span class="radio-title">🔄 Watched Repository</span>
+                <span class="radio-desc">External or community repository.</span>
               </div>
             </label>
             <label class="radio-card">
               <input type="radio" name="repoOwnership" value="owned">
               <div class="radio-card-content">
-                <span class="radio-title">⚡ My Owned Repository</span>
-                <span class="radio-desc">Repository owned by you with GitHub App webhook integration.</span>
+                <span class="radio-title">⭐ My Owned Repository</span>
+                <span class="radio-desc">Repository owned by your GitHub account.</span>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Monitoring Mode</label>
+          <div class="ownership-selector">
+            <label class="radio-card">
+              <input type="radio" name="repoMonitoringMode" value="polling" checked>
+              <div class="radio-card-content">
+                <span class="radio-title">🔄 Periodic Polling (Recommended)</span>
+                <span class="radio-desc">Works on local networks (192.168.x.x) without exposing ports to WAN.</span>
+              </div>
+            </label>
+            <label class="radio-card">
+              <input type="radio" name="repoMonitoringMode" value="webhook">
+              <div class="radio-card-content">
+                <span class="radio-title">⚡ Real-time Webhooks</span>
+                <span class="radio-desc">Instant delivery (requires public domain/tunnel & GitHub App).</span>
               </div>
             </label>
           </div>
@@ -299,20 +319,40 @@
         </div>
 
         <div class="form-group">
-          <label>Repository Ownership & Monitoring Mode</label>
+          <label>Repository Ownership</label>
           <div class="ownership-selector">
-            <label class="radio-card">
-              <input type="radio" name="editRepoOwnership" value="watched" id="editRadioWatched">
-              <div class="radio-card-content">
-                <span class="radio-title">🔄 Watched Public Repository</span>
-                <span class="radio-desc">Monitored via public API polling adapter.</span>
-              </div>
-            </label>
             <label class="radio-card">
               <input type="radio" name="editRepoOwnership" value="owned" id="editRadioOwned">
               <div class="radio-card-content">
-                <span class="radio-title">⚡ My Owned Repository</span>
-                <span class="radio-desc">Repository owned by you with GitHub App webhooks.</span>
+                <span class="radio-title">⭐ My Owned Repository</span>
+                <span class="radio-desc">Repository owned by your GitHub account.</span>
+              </div>
+            </label>
+            <label class="radio-card">
+              <input type="radio" name="editRepoOwnership" value="watched" id="editRadioWatched">
+              <div class="radio-card-content">
+                <span class="radio-title">🔄 Watched Repository</span>
+                <span class="radio-desc">External or community repository.</span>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Monitoring Mode</label>
+          <div class="ownership-selector">
+            <label class="radio-card">
+              <input type="radio" name="editRepoMode" value="polling" id="editRadioModePolling" checked>
+              <div class="radio-card-content">
+                <span class="radio-title">🔄 Periodic Polling</span>
+                <span class="radio-desc">Checks on interval (works on local network 192.168.x.x).</span>
+              </div>
+            </label>
+            <label class="radio-card">
+              <input type="radio" name="editRepoMode" value="webhook" id="editRadioModeWebhook">
+              <div class="radio-card-content">
+                <span class="radio-title">⚡ Real-time Webhook</span>
+                <span class="radio-desc">Instant push (requires public domain/tunnel & GitHub App).</span>
               </div>
             </label>
           </div>

@@ -92,9 +92,8 @@ ghcr.io/rajnishone/github-discord-bot:latest
 You don't need to clone the full repository code—simply create a folder on your server with a `docker-compose.yml` and `.env` file:
 
 ```bash
-mkdir -p /opt/github-discord-bot/data
-cd /opt/github-discord-bot
-chown -R 1000:1000 ./data
+mkdir -p /docker-data/github-discord-bot/data
+chown -R 1000:100 /docker-data/github-discord-bot/data
 ```
 
 Create `docker-compose.yml`:
@@ -104,40 +103,43 @@ services:
     image: ghcr.io/rajnishone/github-discord-bot:latest
     container_name: github-discord-bot
     restart: unless-stopped
-    ports:
-      - "3000:3000"
+
     environment:
+      - PUID=1000
+      - PGID=100
+      - TZ=Asia/Kolkata
       - NODE_ENV=production
       - PORT=3000
       - DATA_DIR=/app/data
-      - GITHUB_OWNER=${GITHUB_OWNER}
+      - GITHUB_OWNER=${GITHUB_OWNER:-RajnishOne}
       - GITHUB_WEBHOOK_SECRET=${GITHUB_WEBHOOK_SECRET}
       - GITHUB_TOKEN=${GITHUB_TOKEN}
       - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL}
       - ADMIN_API_KEY=${ADMIN_API_KEY}
       - DEFAULT_POLLING_INTERVAL=${DEFAULT_POLLING_INTERVAL:-300}
+
     volumes:
-      - ./data:/app/data
-    healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 10s
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
+      - /docker-data/github-discord-bot/data:/app/data
+
+    ports:
+      - 3000:3000
+
+    networks:
+      - proxy
+
+networks:
+  proxy:
+    external: true
 ```
 
 Create `.env`:
 ```env
-GITHUB_OWNER=your-github-username
+GITHUB_OWNER=RajnishOne
 DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/your/webhook/url
 GITHUB_TOKEN=ghp_yourPersonalAccessTokenHere # Optional but boosts API limits to 5,000/hr
 GITHUB_WEBHOOK_SECRET=your_webhook_secret_here
 DEFAULT_POLLING_INTERVAL=300
+TZ=Asia/Kolkata
 ```
 
 Start the bot:

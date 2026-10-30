@@ -1,43 +1,39 @@
 services:
   github-discord-bot:
-    # Pull pre-built multi-arch image from GitHub Container Registry (GHCR):
     image: ghcr.io/rajnishone/github-discord-bot:latest
-    # Or build locally from source (uncomment if developing locally):
-    # build:
-    #   context: .
-    #   dockerfile: Dockerfile
     container_name: github-discord-bot
     restart: unless-stopped
-    ports:
-      - "${PORT:-3000}:3000"
+
     environment:
+      - PUID=1000
+      - PGID=100
+      - TZ=Asia/Kolkata
       - NODE_ENV=production
       - PORT=3000
       - DATA_DIR=/app/data
-      - GITHUB_OWNER=${GITHUB_OWNER}
+      - GITHUB_OWNER=${GITHUB_OWNER:-RajnishOne}
       - GITHUB_WEBHOOK_SECRET=${GITHUB_WEBHOOK_SECRET}
       - GITHUB_TOKEN=${GITHUB_TOKEN}
       - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL}
       - ADMIN_API_KEY=${ADMIN_API_KEY}
       - DEFAULT_POLLING_INTERVAL=${DEFAULT_POLLING_INTERVAL:-300}
+
     volumes:
-      # Persistent storage on OpenMediaVault (OMV) / host filesystem
-      - ${DATA_PATH:-./data}:/app/data
+      - ${DATA_PATH:-/docker-data/github-discord-bot/data}:/app/data
+
+    ports:
+      - 3000:3000
+
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://localhost:3000/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
       interval: 30s
       timeout: 5s
       retries: 3
       start_period: 10s
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
 
-# Optional: To attach to an existing Nginx Proxy Manager / reverse proxy network,
-# uncomment the network configuration below and on the service:
-# networks:
-#   default:
-#     name: ${DOCKER_NETWORK:-bridge}
-#     external: false
+    networks:
+      - proxy
+
+networks:
+  proxy:
+    external: true

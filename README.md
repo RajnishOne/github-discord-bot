@@ -6,6 +6,8 @@
 [![Docker Image](https://img.shields.io/badge/GHCR-ghcr.io%2Frajnishone%2Fgithub--discord--bot-blue?logo=docker)](https://github.com/RajnishOne/github-discord-bot/pkgs/container/github-discord-bot)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
+![GitHub Discord Bot Dashboard](docs/screenshots/dashboard.png)
+
 ---
 
 ## 1. Project Overview

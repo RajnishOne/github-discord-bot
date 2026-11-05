@@ -57,6 +57,12 @@ function setupTabs() {
       appState.activeTab = tab.dataset.tab;
     });
   });
+
+  const hash = window.location.hash.replace('#', '');
+  if (hash) {
+    const matchingTab = document.querySelector(`.tab-btn[data-tab="${hash}"]`);
+    if (matchingTab) matchingTab.click();
+  }
 }
 
 // Setup Modals
@@ -482,10 +488,10 @@ function renderRepositories() {
 function renderRepoCard(repo) {
   const isWebhook = repo.monitoring_type === 'webhook';
   const typeBadge = isWebhook 
-    ? `<span class="badge badge-webhook" title="Real-time push delivery via GitHub App Webhook">⚡ Webhook (Real-time)</span>`
-    : `<span class="badge badge-polling" title="Interval-based public API polling adapter">🔄 Polling (~${Math.round(repo.polling_interval_seconds / 60)}m)</span>`;
+    ? `<span class="badge badge-webhook" title="Real-time push delivery via GitHub App webhook">Webhook</span>`
+    : `<span class="badge badge-polling" title="Interval-based public API polling adapter">Polling (${Math.round(repo.polling_interval_seconds / 60)}m)</span>`;
 
-  const healthBadge = `<span class="badge badge-${repo.health_status}">● ${repo.health_status.toUpperCase()}</span>`;
+  const healthBadge = `<span class="badge badge-${repo.health_status}">● ${repo.health_status}</span>`;
 
   const prefs = repo.preferences || {};
 
@@ -494,14 +500,15 @@ function renderRepoCard(repo) {
       <div class="repo-card-header">
         <div class="repo-title-group">
           <a href="https://github.com/${repo.full_name}" target="_blank" rel="noopener" class="repo-name-link">
-            ${repo.full_name} ↗
+            ${repo.full_name}
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="7" y1="17" x2="17" y2="7"></line><polyline points="7 7 17 7 17 17"></polyline></svg>
           </a>
           <div class="repo-badges">
             ${typeBadge}
             ${healthBadge}
           </div>
         </div>
-        <label class="switch" title="${repo.enabled ? 'Pause Monitoring' : 'Resume Monitoring'}">
+        <label class="switch" title="${repo.enabled ? 'Pause monitoring' : 'Resume monitoring'}">
           <input type="checkbox" class="toggle-repo-btn" data-id="${repo.id}" ${repo.enabled ? 'checked' : ''}>
           <span class="slider"></span>
         </label>
@@ -515,40 +522,40 @@ function renderRepoCard(repo) {
       <!-- Event Preference Chips -->
       <div class="event-prefs-container">
         <div class="event-prefs-header">
-          <span>Active Discord Notification Events</span>
+          <span>Active notification categories</span>
         </div>
         <div class="event-prefs-grid">
           <label class="pref-chip ${prefs.notify_releases ? 'checked' : ''}">
             <input type="checkbox" data-repo-id="${repo.id}" data-pref="notify_releases" ${prefs.notify_releases ? 'checked' : ''}>
-            🚀 Releases
+            Releases
           </label>
           <label class="pref-chip ${prefs.notify_pull_requests ? 'checked' : ''}">
             <input type="checkbox" data-repo-id="${repo.id}" data-pref="notify_pull_requests" ${prefs.notify_pull_requests ? 'checked' : ''}>
-            🔀 PRs
+            Pull requests
           </label>
           <label class="pref-chip ${prefs.notify_issues ? 'checked' : ''}">
             <input type="checkbox" data-repo-id="${repo.id}" data-pref="notify_issues" ${prefs.notify_issues ? 'checked' : ''}>
-            🐛 Issues
+            Issues
           </label>
           <label class="pref-chip ${prefs.notify_pushes ? 'checked' : ''}">
             <input type="checkbox" data-repo-id="${repo.id}" data-pref="notify_pushes" ${prefs.notify_pushes ? 'checked' : ''}>
-            💻 Pushes
+            Pushes
           </label>
           <label class="pref-chip ${prefs.notify_stars ? 'checked' : ''}">
             <input type="checkbox" data-repo-id="${repo.id}" data-pref="notify_stars" ${prefs.notify_stars ? 'checked' : ''}>
-            ⭐ Stars
+            Stars
           </label>
           <label class="pref-chip ${prefs.notify_forks ? 'checked' : ''}">
             <input type="checkbox" data-repo-id="${repo.id}" data-pref="notify_forks" ${prefs.notify_forks ? 'checked' : ''}>
-            🍴 Forks
+            Forks
           </label>
           <label class="pref-chip ${prefs.notify_comments ? 'checked' : ''}">
             <input type="checkbox" data-repo-id="${repo.id}" data-pref="notify_comments" ${prefs.notify_comments ? 'checked' : ''}>
-            💬 Comments
+            Comments
           </label>
           <label class="pref-chip ${prefs.notify_reviews ? 'checked' : ''}">
             <input type="checkbox" data-repo-id="${repo.id}" data-pref="notify_reviews" ${prefs.notify_reviews ? 'checked' : ''}>
-            👁️ Reviews
+            Reviews
           </label>
         </div>
       </div>
@@ -556,16 +563,16 @@ function renderRepoCard(repo) {
       <div class="repo-actions-footer">
         <div style="display: flex; gap: 8px; align-items: center;">
           <button class="btn btn-sm btn-secondary btn-edit-repo" data-id="${repo.id}">
-            ⚙️ Configure
+            Configure
           </button>
           ${!isWebhook ? `
             <button class="btn btn-sm btn-ghost btn-poll-now" data-id="${repo.id}">
-              ⚡ Poll Now
+              Poll now
             </button>
-          ` : '<span style="font-size:11px;color:var(--text-dim)">Instant Webhook</span>'}
+          ` : '<span style="font-size:11px;color:var(--text-muted)">Instant webhook</span>'}
         </div>
         <button class="btn btn-sm btn-danger btn-delete-repo" data-id="${repo.id}" data-name="${repo.full_name}">
-          🗑️ Remove
+          Remove
         </button>
       </div>
     </div>
@@ -634,7 +641,7 @@ function attachRepoCardListeners() {
         showToast(err.message, 'error');
       } finally {
         btn.disabled = false;
-        btn.textContent = '⚡ Poll Now';
+        btn.textContent = 'Poll now';
       }
     });
   });
@@ -817,8 +824,8 @@ function renderDiscordWebhooksList() {
             <input type="checkbox" class="wh-enabled-input" ${wh.enabled !== false ? 'checked' : ''}>
             <span>Active</span>
           </label>
-          <button type="button" class="btn btn-sm btn-ghost btn-remove-wh" title="Remove this channel" style="color: var(--accent-rose); padding: 4px 8px;">
-            ✕
+          <button type="button" class="btn btn-sm btn-ghost btn-remove-wh" title="Remove this channel" style="color: var(--accent-err); padding: 4px 8px;" aria-label="Remove channel">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
           </button>
         </div>
       </div>
@@ -943,7 +950,7 @@ async function loadSettings() {
 async function handleAutoDiscovery() {
   const btn = document.getElementById('btnDiscoverOwned');
   btn.disabled = true;
-  btn.textContent = 'Scanning GitHub...';
+  btn.textContent = 'Scanning...';
 
   try {
     const res = await fetch('/api/discover', { method: 'POST' });
@@ -951,7 +958,7 @@ async function handleAutoDiscovery() {
     if (data.success) {
       const count = data.result?.discovered || 0;
       if (count > 0) {
-        showToast(`Discovered ${count} new public repository(s)!`, 'success');
+        showToast(`Discovered ${count} new public repository(s).`, 'success');
         loadRepositories();
       } else {
         showToast('Auto-discovery complete: No new public repositories found.', 'info');
@@ -963,7 +970,13 @@ async function handleAutoDiscovery() {
     showToast(err.message, 'error');
   } finally {
     btn.disabled = false;
-    btn.textContent = '✨ Auto-Discover Now';
+    btn.innerHTML = `
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <circle cx="11" cy="11" r="8"></circle>
+        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+      </svg>
+      Auto-discover repositories
+    `;
   }
 }
 
@@ -973,8 +986,15 @@ function showToast(message, type = 'info') {
   if (!container) return;
   const toast = document.createElement('div');
   toast.className = `toast ${type}`;
-  const icon = type === 'success' ? '✅' : type === 'error' ? '❌' : 'ℹ️';
-  toast.innerHTML = `<span>${icon}</span><span style="flex: 1; word-break: break-word;">${escapeHtml(message)}</span>`;
+  let iconSvg = '';
+  if (type === 'success') {
+    iconSvg = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>';
+  } else if (type === 'error') {
+    iconSvg = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>';
+  } else {
+    iconSvg = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>';
+  }
+  toast.innerHTML = `<span style="display:flex;align-items:center;">${iconSvg}</span><span style="flex: 1; word-break: break-word;">${escapeHtml(message)}</span>`;
   container.appendChild(toast);
 
   setTimeout(() => {

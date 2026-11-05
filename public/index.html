@@ -3,197 +3,237 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>GitHub Discord Bot • Real-Time GitHub Monitoring & Discord Alerts</title>
-  <meta name="description" content="Monitor public GitHub repositories with real-time webhooks or intelligent public API polling and dispatch rich notifications to Discord.">
+  <title>GitHub Discord Bot — Repository Monitor & Discord Relay</title>
+  <meta name="description" content="Utilitarian GitHub repository monitoring daemon. Dispatches real-time webhooks and interval polling events to Discord channels.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <div class="app-background">
-    <div class="glow-orb orb-1"></div>
-    <div class="glow-orb orb-2"></div>
-  </div>
-
-  <div class="app-container">
-    <!-- Header -->
+  <div class="app-layout">
+    <!-- Top Navigation Bar -->
     <header class="top-nav">
-      <div class="brand">
-        <div class="logo-pulse">
-          <span class="pulse-ring"></span>
-          <span class="pulse-dot"></span>
+      <div class="nav-brand">
+        <div class="brand-glyph" aria-hidden="true">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="16 18 22 12 16 6"></polyline>
+            <polyline points="8 6 2 12 8 18"></polyline>
+          </svg>
         </div>
-        <div class="brand-text">
-          <h1>GitHub Discord Bot</h1>
-          <span class="brand-tag">GitHub Monitor & Discord Relay</span>
+        <div class="brand-meta">
+          <h1 class="brand-title">GitHub Discord Bot</h1>
+          <span class="brand-subtitle">Repository monitor & Discord relay</span>
         </div>
       </div>
 
       <div class="header-status">
         <div class="status-pill rate-limit-pill" id="rateLimitPill" title="GitHub API Rate Limits">
-          <span class="pill-dot"></span>
-          <span id="rateLimitText">Rate Limit: Checking...</span>
+          <span class="pill-dot" aria-hidden="true"></span>
+          <span id="rateLimitText">API limit: Checking...</span>
         </div>
         <div class="status-pill discord-pill" id="discordPill" title="Discord Webhook Status">
-          <span class="pill-dot" id="discordDot"></span>
+          <span class="pill-dot" id="discordDot" aria-hidden="true"></span>
           <span id="discordText">Discord: Standby</span>
         </div>
-        <button class="btn btn-secondary btn-icon" id="btnSettings" title="Settings">
-          ⚙️ Settings
+        <button class="btn btn-secondary" id="btnSettings" type="button">
+          <svg class="btn-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path>
+            <circle cx="12" cy="12" r="3"></circle>
+          </svg>
+          Settings
         </button>
-        <button class="btn btn-primary" id="btnOpenAddModal">
-          <span class="btn-icon">+</span> Add Repository
+        <button class="btn btn-primary" id="btnOpenAddModal" type="button">
+          <svg class="btn-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <line x1="12" y1="5" x2="12" y2="19"></line>
+            <line x1="5" y1="12" x2="19" y2="12"></line>
+          </svg>
+          Add repository
         </button>
       </div>
     </header>
 
-    <!-- Metrics Bar -->
-    <section class="metrics-grid">
-      <div class="metric-card">
-        <div class="metric-icon">📦</div>
-        <div class="metric-data">
+    <!-- Main Content Area -->
+    <main class="app-main">
+      <!-- Metrics Row -->
+      <section class="metrics-grid" aria-label="System Metrics">
+        <div class="metric-card">
+          <span class="metric-label">Total monitored</span>
           <div class="metric-number" id="metricTotalRepos">0</div>
-          <div class="metric-label">Total Monitored</div>
         </div>
-      </div>
-      <div class="metric-card">
-        <div class="metric-icon">⚡</div>
-        <div class="metric-data">
+        <div class="metric-card">
+          <span class="metric-label">Webhook delivery</span>
           <div class="metric-number" id="metricOwnedRepos">0</div>
-          <div class="metric-label">Owned (Webhooks)</div>
         </div>
-      </div>
-      <div class="metric-card">
-        <div class="metric-icon">🔄</div>
-        <div class="metric-data">
+        <div class="metric-card">
+          <span class="metric-label">Polling sync</span>
           <div class="metric-number" id="metricWatchedRepos">0</div>
-          <div class="metric-label">Watched (Polling)</div>
         </div>
-      </div>
-      <div class="metric-card">
-        <div class="metric-icon">🔔</div>
-        <div class="metric-data">
+        <div class="metric-card">
+          <span class="metric-label">Dispatched events</span>
           <div class="metric-number" id="metricDeliveredEvents">0</div>
-          <div class="metric-label">Dispatched Events</div>
         </div>
-      </div>
-    </section>
+      </section>
 
-    <!-- Navigation Tabs -->
-    <nav class="content-tabs">
-      <button class="tab-btn active" data-tab="my-repos" id="tabMyRepos">
-        <span class="tab-icon">👑</span> My Repositories
-        <span class="tab-badge" id="badgeOwned">0</span>
-      </button>
-      <button class="tab-btn" data-tab="watched-repos" id="tabWatched">
-        <span class="tab-icon">👁️</span> Watched Repositories
-        <span class="tab-badge" id="badgeWatched">0</span>
-      </button>
-      <button class="tab-btn" data-tab="activity-feed" id="tabActivity">
-        <span class="tab-icon">📡</span> Activity Feed
-        <span class="tab-badge" id="badgeActivity">0</span>
-      </button>
-    </nav>
+      <!-- Navigation Tabs -->
+      <nav class="content-tabs" aria-label="Sections">
+        <button class="tab-btn active" data-tab="my-repos" id="tabMyRepos" type="button">
+          <svg class="tab-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"></path>
+          </svg>
+          Owned repositories
+          <span class="tab-badge" id="badgeOwned">0</span>
+        </button>
+        <button class="tab-btn" data-tab="watched-repos" id="tabWatched" type="button">
+          <svg class="tab-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"></path>
+            <circle cx="12" cy="12" r="3"></circle>
+          </svg>
+          Watched repositories
+          <span class="tab-badge" id="badgeWatched">0</span>
+        </button>
+        <button class="tab-btn" data-tab="activity-feed" id="tabActivity" type="button">
+          <svg class="tab-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+          </svg>
+          Activity feed
+          <span class="tab-badge" id="badgeActivity">0</span>
+        </button>
+      </nav>
 
-    <!-- Tab 1: My Repositories (Owned) -->
-    <section class="tab-content active" id="pane-my-repos">
-      <div class="section-banner">
-        <div class="banner-info">
-          <h2>My Public Repositories</h2>
-          <p>Your owned public repositories receiving instant push notifications via webhooks or interval polling. Newly created public repos are automatically discovered.</p>
+      <!-- Tab 1: My Repositories (Owned) -->
+      <section class="tab-content active" id="pane-my-repos">
+        <div class="section-banner">
+          <div class="banner-info">
+            <h2>Owned repositories</h2>
+            <p>Monitored repositories under your account. Ingests instant push deliveries via webhooks or background interval polling.</p>
+          </div>
+          <div class="banner-actions">
+            <button class="btn btn-sm btn-secondary" id="btnDiscoverOwned" type="button">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <circle cx="11" cy="11" r="8"></circle>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+              </svg>
+              Auto-discover repositories
+            </button>
+          </div>
         </div>
-        <div class="banner-actions">
-          <button class="btn btn-sm btn-secondary" id="btnDiscoverOwned">
-            ✨ Auto-Discover Now
+
+        <div class="repo-grid" id="ownedRepoList">
+          <!-- Rendered dynamically -->
+        </div>
+
+        <div class="empty-state" id="emptyOwned" style="display: none;">
+          <div class="empty-icon-wrap" aria-hidden="true">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"></path>
+            </svg>
+          </div>
+          <h3>No owned repositories registered</h3>
+          <p>Register your GitHub username in Settings or add an owned repository manually to start dispatching events.</p>
+          <button class="btn btn-secondary btn-sm" onclick="openAddModal('owned')" type="button">
+            Add owned repository
           </button>
         </div>
-      </div>
+      </section>
 
-      <div class="repo-grid" id="ownedRepoList">
-        <!-- Rendered dynamically -->
-      </div>
-
-      <div class="empty-state" id="emptyOwned" style="display: none;">
-        <div class="empty-icon">👑</div>
-        <h3>No owned repositories registered</h3>
-        <p>Connect your GitHub account or add your owned public repository to receive notifications.</p>
-        <button class="btn btn-primary" onclick="openAddModal('owned')">+ Add Owned Repository</button>
-      </div>
-    </section>
-
-    <!-- Tab 2: Watched Repositories (External Public Repositories) -->
-    <section class="tab-content" id="pane-watched-repos">
-      <div class="section-banner">
-        <div class="banner-info">
-          <h2>Watched Public Repositories</h2>
-          <p>Public repositories monitored through GitHub Discord Bot's adaptive GitHub API polling engine with ETag caching and zero-duplicate filtering.</p>
+      <!-- Tab 2: Watched Repositories (External Public Repositories) -->
+      <section class="tab-content" id="pane-watched-repos">
+        <div class="section-banner">
+          <div class="banner-info">
+            <h2>Watched public repositories</h2>
+            <p>External repositories polled with conditional ETag headers to preserve rate limits and suppress duplicate notifications.</p>
+          </div>
+          <div class="banner-actions">
+            <button class="btn btn-sm btn-secondary" id="btnRefreshWatched" type="button">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.19"></path>
+              </svg>
+              Refresh
+            </button>
+          </div>
         </div>
-        <div class="banner-actions">
-          <button class="btn btn-sm btn-ghost" id="btnRefreshWatched">🔄 Refresh</button>
+
+        <div class="repo-grid" id="watchedRepoList">
+          <!-- Rendered dynamically -->
         </div>
-      </div>
 
-      <div class="repo-grid" id="watchedRepoList">
-        <!-- Rendered dynamically -->
-      </div>
-
-      <div class="empty-state" id="emptyWatched" style="display: none;">
-        <div class="empty-icon">🔭</div>
-        <h3>No watched repositories yet</h3>
-        <p>Add any public GitHub repository (e.g. <code>facebook/react</code>, <code>expressjs/express</code>) to monitor releases, issues, and PRs.</p>
-        <button class="btn btn-primary" onclick="openAddModal('watched')">+ Add Public Repository</button>
-      </div>
-    </section>
-
-    <!-- Tab 3: Activity Feed -->
-    <section class="tab-content" id="pane-activity-feed">
-      <div class="section-banner">
-        <div class="banner-info">
-          <h2>Processed Event Stream</h2>
-          <p>Chronological feed of normalized events captured via webhooks and polling with Discord dispatch status.</p>
+        <div class="empty-state" id="emptyWatched" style="display: none;">
+          <div class="empty-icon-wrap" aria-hidden="true">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"></path>
+              <circle cx="12" cy="12" r="3"></circle>
+            </svg>
+          </div>
+          <h3>No watched repositories added</h3>
+          <p>Track releases, pull requests, and issues from any open-source GitHub repository.</p>
+          <button class="btn btn-secondary btn-sm" onclick="openAddModal('watched')" type="button">
+            Add public repository
+          </button>
         </div>
-        <div class="banner-actions">
-          <button class="btn btn-sm btn-ghost" id="btnRefreshActivity">🔄 Refresh Feed</button>
+      </section>
+
+      <!-- Tab 3: Activity Feed -->
+      <section class="tab-content" id="pane-activity-feed">
+        <div class="section-banner">
+          <div class="banner-info">
+            <h2>Event stream</h2>
+            <p>Chronological feed of normalized events captured via webhooks and polling with Discord dispatch status.</p>
+          </div>
+          <div class="banner-actions">
+            <button class="btn btn-sm btn-secondary" id="btnRefreshActivity" type="button">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.19"></path>
+              </svg>
+              Refresh feed
+            </button>
+          </div>
         </div>
-      </div>
 
-      <div class="activity-list" id="activityFeedList">
-        <!-- Rendered dynamically -->
-      </div>
+        <div class="activity-list" id="activityFeedList">
+          <!-- Rendered dynamically -->
+        </div>
 
-      <div class="empty-state" id="emptyActivity" style="display: none;">
-        <div class="empty-icon">💤</div>
-        <h3>No events recorded yet</h3>
-        <p>Events will stream in as watched repositories publish releases, open PRs, or push commits.</p>
-      </div>
-    </section>
+        <div class="empty-state" id="emptyActivity" style="display: none;">
+          <div class="empty-icon-wrap" aria-hidden="true">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+            </svg>
+          </div>
+          <h3>No events recorded</h3>
+          <p>New releases, pull requests, and commits will appear here in real time as they are processed.</p>
+        </div>
+      </section>
+    </main>
   </div>
 
   <!-- Add Repository Modal -->
-  <div class="modal-backdrop" id="addModal">
+  <div class="modal-backdrop" id="addModal" role="dialog" aria-modal="true" aria-labelledby="addModalTitle">
     <div class="modal-card">
       <div class="modal-header">
-        <h3>Add Repository to Monitor</h3>
-        <button class="btn-close" id="btnCloseAddModal">✕</button>
+        <h3 id="addModalTitle">Add repository to monitor</h3>
+        <button class="btn-close" id="btnCloseAddModal" type="button" aria-label="Close dialog">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
       </div>
 
       <form id="addRepoForm">
         <div class="form-group">
-          <label for="repoInput">GitHub Repository</label>
+          <label for="repoInput">GitHub repository</label>
           <div class="input-with-validation">
             <input 
               type="text" 
               id="repoInput" 
-              placeholder="e.g. facebook/react or https://github.com/expressjs/express" 
+              placeholder="owner/repo or repository URL" 
               required
               autocomplete="off"
+              spellcheck="false"
             >
-            <button type="button" class="btn btn-sm btn-secondary" id="btnValidateRepo">
+            <button type="button" class="btn btn-secondary btn-sm" id="btnValidateRepo">
               Verify
             </button>
           </div>
-          <div class="field-hint">Supports full GitHub URLs or <code>owner/repository</code> format.</div>
+          <div class="field-hint">Supports full GitHub URLs or <code>owner/name</code> syntax.</div>
         </div>
 
         <div class="verification-banner" id="verificationResult" style="display: none;">
@@ -201,90 +241,90 @@
         </div>
 
         <div class="form-group">
-          <label>Repository Ownership</label>
+          <label>Repository ownership</label>
           <div class="ownership-selector">
             <label class="radio-card">
               <input type="radio" name="repoOwnership" value="watched" checked>
               <div class="radio-card-content">
-                <span class="radio-title">🔄 Watched Repository</span>
-                <span class="radio-desc">External or community repository.</span>
+                <span class="radio-title">Watched repository</span>
+                <span class="radio-desc">External open-source repository.</span>
               </div>
             </label>
             <label class="radio-card">
               <input type="radio" name="repoOwnership" value="owned">
               <div class="radio-card-content">
-                <span class="radio-title">⭐ My Owned Repository</span>
-                <span class="radio-desc">Repository owned by your GitHub account.</span>
+                <span class="radio-title">Owned repository</span>
+                <span class="radio-desc">Repository owned by your account.</span>
               </div>
             </label>
           </div>
         </div>
 
         <div class="form-group">
-          <label>Monitoring Mode</label>
+          <label>Monitoring mode</label>
           <div class="ownership-selector">
             <label class="radio-card">
               <input type="radio" name="repoMonitoringMode" value="polling" checked>
               <div class="radio-card-content">
-                <span class="radio-title">🔄 Periodic Polling (Recommended)</span>
-                <span class="radio-desc">Works on local networks (192.168.x.x) without exposing ports to WAN.</span>
+                <span class="radio-title">Periodic polling</span>
+                <span class="radio-desc">Works on local networks without exposing public ports.</span>
               </div>
             </label>
             <label class="radio-card">
               <input type="radio" name="repoMonitoringMode" value="webhook">
               <div class="radio-card-content">
-                <span class="radio-title">⚡ Real-time Webhooks</span>
-                <span class="radio-desc">Instant delivery (requires public domain/tunnel & GitHub App).</span>
+                <span class="radio-title">Real-time webhook</span>
+                <span class="radio-desc">Push delivery via GitHub App webhook endpoint.</span>
               </div>
             </label>
           </div>
         </div>
 
         <div class="form-group">
-          <label>Notification Categories</label>
+          <label>Notification categories</label>
           <div class="category-checkbox-grid">
             <label class="checkbox-pill">
               <input type="checkbox" id="prefReleases" checked>
-              <span>🚀 Releases</span>
+              <span>Releases</span>
             </label>
             <label class="checkbox-pill">
               <input type="checkbox" id="prefPRs" checked>
-              <span>🔀 Pull Requests</span>
+              <span>Pull requests</span>
             </label>
             <label class="checkbox-pill">
               <input type="checkbox" id="prefIssues" checked>
-              <span>🐛 Issues</span>
+              <span>Issues</span>
             </label>
             <label class="checkbox-pill">
               <input type="checkbox" id="prefPushes" checked>
-              <span>💻 Commits & Pushes</span>
+              <span>Commits & pushes</span>
             </label>
             <label class="checkbox-pill">
               <input type="checkbox" id="prefStars">
-              <span>⭐ Stars</span>
+              <span>Stars</span>
             </label>
             <label class="checkbox-pill">
               <input type="checkbox" id="prefForks">
-              <span>🍴 Forks</span>
+              <span>Forks</span>
             </label>
             <label class="checkbox-pill">
               <input type="checkbox" id="prefComments">
-              <span>💬 Comments</span>
+              <span>Comments</span>
             </label>
             <label class="checkbox-pill">
               <input type="checkbox" id="prefReviews">
-              <span>👁️ Reviews</span>
+              <span>Reviews</span>
             </label>
           </div>
         </div>
 
         <div class="form-group" id="pollingIntervalGroup">
-          <label for="pollIntervalInput">Polling Frequency</label>
+          <label for="pollIntervalInput">Polling frequency</label>
           <select id="pollIntervalInput" class="form-select">
-            <option value="60">Every 1 minute (Fast-paced)</option>
+            <option value="60">Every 1 minute</option>
             <option value="120">Every 2 minutes</option>
             <option value="180">Every 3 minutes</option>
-            <option value="300" selected>Every 5 minutes (Recommended)</option>
+            <option value="300" selected>Every 5 minutes (standard)</option>
             <option value="600">Every 10 minutes</option>
             <option value="900">Every 15 minutes</option>
             <option value="1800">Every 30 minutes</option>
@@ -294,18 +334,20 @@
 
         <div class="modal-footer">
           <button type="button" class="btn btn-ghost" id="btnCancelAdd">Cancel</button>
-          <button type="submit" class="btn btn-primary" id="btnSubmitAdd">Start Monitoring</button>
+          <button type="submit" class="btn btn-primary" id="btnSubmitAdd">Start monitoring</button>
         </div>
       </form>
     </div>
   </div>
 
   <!-- Edit Repository Modal -->
-  <div class="modal-backdrop" id="editRepoModal">
+  <div class="modal-backdrop" id="editRepoModal" role="dialog" aria-modal="true" aria-labelledby="editRepoModalTitle">
     <div class="modal-card">
       <div class="modal-header">
-        <h3 id="editRepoModalTitle">Configure Repository</h3>
-        <button class="btn-close" id="btnCloseEditModal">✕</button>
+        <h3 id="editRepoModalTitle">Configure repository</h3>
+        <button class="btn-close" id="btnCloseEditModal" type="button" aria-label="Close dialog">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
       </div>
 
       <form id="editRepoForm">
@@ -313,132 +355,135 @@
 
         <div class="form-group">
           <label>Repository</label>
-          <div style="font-family: var(--font-mono); font-size: 15px; font-weight: 600; color: var(--accent-cyan);" id="editRepoNameDisplay">
-            owner/repo
-          </div>
+          <div class="modal-repo-name" id="editRepoNameDisplay">owner/repo</div>
         </div>
 
         <div class="form-group">
-          <label>Repository Ownership</label>
+          <label>Repository ownership</label>
           <div class="ownership-selector">
             <label class="radio-card">
               <input type="radio" name="editRepoOwnership" value="owned" id="editRadioOwned">
               <div class="radio-card-content">
-                <span class="radio-title">⭐ My Owned Repository</span>
-                <span class="radio-desc">Repository owned by your GitHub account.</span>
+                <span class="radio-title">Owned repository</span>
+                <span class="radio-desc">Repository owned by your account.</span>
               </div>
             </label>
             <label class="radio-card">
               <input type="radio" name="editRepoOwnership" value="watched" id="editRadioWatched">
               <div class="radio-card-content">
-                <span class="radio-title">🔄 Watched Repository</span>
-                <span class="radio-desc">External or community repository.</span>
+                <span class="radio-title">Watched repository</span>
+                <span class="radio-desc">External community repository.</span>
               </div>
             </label>
           </div>
         </div>
 
         <div class="form-group">
-          <label>Monitoring Mode</label>
+          <label>Monitoring mode</label>
           <div class="ownership-selector">
             <label class="radio-card">
               <input type="radio" name="editRepoMode" value="polling" id="editRadioModePolling" checked>
               <div class="radio-card-content">
-                <span class="radio-title">🔄 Periodic Polling</span>
-                <span class="radio-desc">Checks on interval (works on local network 192.168.x.x).</span>
+                <span class="radio-title">Periodic polling</span>
+                <span class="radio-desc">Runs scheduled requests with ETag caching.</span>
               </div>
             </label>
             <label class="radio-card">
               <input type="radio" name="editRepoMode" value="webhook" id="editRadioModeWebhook">
               <div class="radio-card-content">
-                <span class="radio-title">⚡ Real-time Webhook</span>
-                <span class="radio-desc">Instant push (requires public domain/tunnel & GitHub App).</span>
+                <span class="radio-title">Real-time webhook</span>
+                <span class="radio-desc">Inbound webhook push notifications.</span>
               </div>
             </label>
           </div>
         </div>
 
         <div class="form-group" id="editPollingIntervalGroup">
-          <label for="editPollIntervalInput">Polling Frequency</label>
+          <label for="editPollIntervalInput">Polling frequency</label>
           <select id="editPollIntervalInput" class="form-select">
-            <option value="60">Every 1 minute (Fast-paced)</option>
+            <option value="60">Every 1 minute</option>
             <option value="120">Every 2 minutes</option>
             <option value="180">Every 3 minutes</option>
-            <option value="300">Every 5 minutes (Recommended)</option>
+            <option value="300">Every 5 minutes (standard)</option>
             <option value="600">Every 10 minutes</option>
             <option value="900">Every 15 minutes</option>
             <option value="1800">Every 30 minutes</option>
             <option value="3600">Every 1 hour</option>
           </select>
-          <div class="field-hint">How often the bot polls GitHub for new activity.</div>
+          <div class="field-hint">Polling interval for GitHub activity checks.</div>
         </div>
 
         <div class="form-group">
-          <label>Notification Categories</label>
+          <label>Notification categories</label>
           <div class="category-checkbox-grid">
             <label class="checkbox-pill">
               <input type="checkbox" id="editPrefReleases">
-              <span>🚀 Releases</span>
+              <span>Releases</span>
             </label>
             <label class="checkbox-pill">
               <input type="checkbox" id="editPrefPRs">
-              <span>🔀 Pull Requests</span>
+              <span>Pull requests</span>
             </label>
             <label class="checkbox-pill">
               <input type="checkbox" id="editPrefIssues">
-              <span>🐛 Issues</span>
+              <span>Issues</span>
             </label>
             <label class="checkbox-pill">
               <input type="checkbox" id="editPrefPushes">
-              <span>💻 Commits & Pushes</span>
+              <span>Commits & pushes</span>
             </label>
             <label class="checkbox-pill">
               <input type="checkbox" id="editPrefStars">
-              <span>⭐ Stars</span>
+              <span>Stars</span>
             </label>
             <label class="checkbox-pill">
               <input type="checkbox" id="editPrefForks">
-              <span>🍴 Forks</span>
+              <span>Forks</span>
             </label>
             <label class="checkbox-pill">
               <input type="checkbox" id="editPrefComments">
-              <span>💬 Comments</span>
+              <span>Comments</span>
             </label>
             <label class="checkbox-pill">
               <input type="checkbox" id="editPrefReviews">
-              <span>👁️ Reviews</span>
+              <span>Reviews</span>
             </label>
           </div>
         </div>
 
         <div class="modal-footer">
           <button type="button" class="btn btn-ghost" id="btnCancelEdit">Cancel</button>
-          <button type="submit" class="btn btn-primary" id="btnSaveEditRepo">Save Changes</button>
+          <button type="submit" class="btn btn-primary" id="btnSaveEditRepo">Save changes</button>
         </div>
       </form>
     </div>
   </div>
 
   <!-- Settings Modal -->
-  <div class="modal-backdrop" id="settingsModal">
+  <div class="modal-backdrop" id="settingsModal" role="dialog" aria-modal="true" aria-labelledby="settingsModalTitle">
     <div class="modal-card modal-card-lg">
       <div class="modal-header">
-        <h3>GitHub Discord Bot Configuration</h3>
-        <button class="btn-close" id="btnCloseSettingsModal">✕</button>
+        <h3 id="settingsModalTitle">Settings & Integrations</h3>
+        <button class="btn-close" id="btnCloseSettingsModal" type="button" aria-label="Close dialog">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
       </div>
 
       <form id="settingsForm">
         <!-- Section 1: Multiple Discord Webhooks -->
         <div class="settings-section-header">
-          <span class="settings-section-title">
-            <span>💬</span> Discord Webhook Channels
-          </span>
+          <div class="settings-section-title">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+            </svg>
+            Discord webhook channels
+          </div>
           <button type="button" class="btn btn-xs btn-secondary" id="btnAddWebhookRow">
-            + Add Channel
+            + Add channel
           </button>
         </div>
-        <div class="field-hint" style="margin-bottom: 10px;">
-          Configure one or multiple Discord channels. All events will be broadcast in parallel to every active channel.
+        <div class="field-hint" style="margin-bottom: 12px;">
+          Configure target Discord channels. Events are dispatched in parallel to active webhooks.
         </div>
 
         <div class="webhooks-list-container" id="discordWebhooksContainer">
@@ -447,20 +492,24 @@
 
         <!-- Section 2: GitHub Account & Token -->
         <div class="settings-section-header" style="margin-top: 24px;">
-          <span class="settings-section-title">
-            <span>🐙</span> GitHub Integration & Ownership
-          </span>
+          <div class="settings-section-title">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"></path>
+            </svg>
+            GitHub integration & account
+          </div>
         </div>
 
         <div class="form-group">
-          <label for="githubOwnerInput">GitHub Username or Organization</label>
+          <label for="githubOwnerInput">GitHub username or organization</label>
           <input 
             type="text" 
             id="githubOwnerInput" 
-            placeholder="e.g. RajnishOne"
+            placeholder="e.g. your-github-handle"
             autocomplete="off"
+            spellcheck="false"
           >
-          <div class="field-hint">Your GitHub handle. Used for ownership verification and 1-click repository auto-discovery.</div>
+          <div class="field-hint">Used for ownership validation and one-click repository discovery.</div>
         </div>
 
         <div class="form-group">
@@ -469,58 +518,65 @@
             type="password" 
             id="githubTokenInput" 
             placeholder="ghp_••••••••••••••••••••"
+            autocomplete="off"
           >
-          <div class="field-hint">Expands your GitHub API rate limit from 60 to <strong>5,000 requests/hour</strong> and enables 1-click auto-discovery.</div>
+          <div class="field-hint">Raises your GitHub API rate limit from 60 to 5,000 requests per hour.</div>
         </div>
 
         <div class="form-group">
-          <label for="webhookSecretInput">GitHub App Webhook Secret (Optional)</label>
+          <label for="webhookSecretInput">GitHub webhook secret (Optional)</label>
           <input 
             type="password" 
             id="webhookSecretInput" 
-            placeholder="••••••••••••••••••••"
+            placeholder="HMAC SHA-256 secret key"
+            autocomplete="off"
           >
-          <div class="field-hint">Used to verify HMAC-SHA256 signatures on inbound webhooks. Leave blank if only polling.</div>
+          <div class="field-hint">Validates signature headers for inbound webhook requests.</div>
         </div>
 
         <!-- Section 3: Advanced Preferences -->
         <div class="settings-section-header" style="margin-top: 24px;">
-          <span class="settings-section-title">
-            <span>⚙️</span> Defaults & Security
-          </span>
+          <div class="settings-section-title">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+            </svg>
+            Defaults & access
+          </div>
         </div>
 
         <div class="form-group">
-          <label for="defaultPollingIntervalInput">Default Polling Frequency</label>
+          <label for="defaultPollingIntervalInput">Default polling frequency</label>
           <select id="defaultPollingIntervalInput" class="form-select">
-            <option value="60">Every 1 minute (Fast-paced)</option>
+            <option value="60">Every 1 minute</option>
             <option value="180">Every 3 minutes</option>
-            <option value="300" selected>Every 5 minutes (Recommended)</option>
+            <option value="300" selected>Every 5 minutes (standard)</option>
             <option value="600">Every 10 minutes</option>
             <option value="1800">Every 30 minutes</option>
           </select>
-          <div class="field-hint">Default check interval for newly added watched public repositories.</div>
+          <div class="field-hint">Initial polling interval assigned to new watched repositories.</div>
         </div>
 
         <div class="form-group">
-          <label for="adminApiKeyInput">Admin API Key (Optional)</label>
+          <label for="adminApiKeyInput">Admin API key (Optional)</label>
           <input 
             type="password" 
             id="adminApiKeyInput" 
-            placeholder="Optional security key for /api/admin/*"
+            placeholder="Optional bearer token for /api/admin/*"
+            autocomplete="off"
           >
-          <div class="field-hint">Protects outbox queue retry endpoints. Leave blank to disable admin authentication.</div>
+          <div class="field-hint">Restricts administrative queue and retry endpoints.</div>
         </div>
 
         <div class="modal-footer">
           <button type="button" class="btn btn-ghost" id="btnCancelSettings">Close</button>
-          <button type="submit" class="btn btn-primary" id="btnSaveSettings">Save All Settings</button>
+          <button type="submit" class="btn btn-primary" id="btnSaveSettings">Save settings</button>
         </div>
       </form>
     </div>
   </div>
 
-  <div id="toastContainer" class="toast-container"></div>
+  <div id="toastContainer" class="toast-container" aria-live="polite"></div>
 
   <script src="app.js"></script>
 </body>

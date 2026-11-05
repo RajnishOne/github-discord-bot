@@ -1,0 +1,12 @@
+# SQLite WAL and lock files
+*.sqlite-shm
+*.sqlite-wal
+*.sqlite-journal
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS artifacts
+.DS_Store
+Thumbs.db

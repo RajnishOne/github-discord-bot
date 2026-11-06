@@ -25,6 +25,7 @@ import {
 import { EventNormalizer } from './services/normalizer.js';
 import { EventPipeline } from './services/deduplicator.js';
 import { DiscordService } from './services/discord.js';
+import { DiscordBotService } from './services/discord-bot.js';
 import { PollingScheduler } from './services/scheduler.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -76,13 +77,37 @@ export function createServer(options = {}) {
   const githubOwner = getSetting('github_owner') || process.env.GITHUB_OWNER || '';
   const adminApiKey = getSetting('admin_api_key') || process.env.ADMIN_API_KEY || '';
 
+  const botToken = getSetting('discord_bot_token') || process.env.DISCORD_BOT_TOKEN || '';
+  const botClientId = getSetting('discord_client_id') || process.env.DISCORD_CLIENT_ID || '';
+  const botDefaultChannel = getSetting('discord_channel_id') || process.env.DISCORD_CHANNEL_ID || '';
+  const botGuildId = getSetting('discord_guild_id') || process.env.DISCORD_GUILD_ID || '';
+
   const githubService = options.githubService || new GitHubService({ token: githubToken });
-  const discordService = options.discordService || new DiscordService({ webhooks: initialWebhooks, mockMode: initialWebhooks.length === 0 });
+  const discordBotService = options.discordBotService || new DiscordBotService({
+    token: botToken,
+    clientId: botClientId,
+    defaultChannelId: botDefaultChannel,
+    guildId: botGuildId,
+    githubService
+  });
+
+  const discordService = options.discordService || new DiscordService({
+    webhooks: initialWebhooks,
+    botService: discordBotService,
+    mockMode: initialWebhooks.length === 0 && !botToken
+  });
+
+  if (discordService && !discordService.botService) {
+    discordService.setBotService(discordBotService);
+  }
+
   const pipeline = options.pipeline || new EventPipeline({ discordService });
   const scheduler = options.scheduler || new PollingScheduler({ githubService, pipeline });
+  discordBotService.setScheduler(scheduler);
 
   // Expose services on app for tests
   app.locals.githubService = githubService;
+  app.locals.discordBotService = discordBotService;
   app.locals.discordService = discordService;
   app.locals.pipeline = pipeline;
   app.locals.scheduler = scheduler;
@@ -253,8 +278,13 @@ export function createServer(options = {}) {
         health_message: monitoringType === 'webhook'
           ? 'Registered for GitHub App webhooks' 
           : 'Monitored via public API polling adapter',
+        discord_channel_id: req.body.discord_channel_id ? req.body.discord_channel_id.trim() : null,
         preferences
       });
+
+      if (discordBotService) {
+        discordBotService.updatePresence();
+      }
 
       res.status(201).json({
         success: true,
@@ -313,6 +343,10 @@ export function createServer(options = {}) {
 
       if (preferences && typeof preferences === 'object') {
         updates.preferences = preferences;
+      }
+
+      if (req.body.discord_channel_id !== undefined) {
+        updates.discord_channel_id = req.body.discord_channel_id ? req.body.discord_channel_id.trim() : null;
       }
 
       const updated = updateRepository(repo.id, updates);
@@ -380,10 +414,12 @@ export function createServer(options = {}) {
   app.delete('/api/repositories/:id', (req, res) => {
     try {
       const deleted = deleteRepository(req.params.id);
-      if (!deleted) {
-        return res.status(404).json({ success: false, error: 'Repository not found.' });
+      if (deleted) {
+        if (discordBotService) {
+          discordBotService.updatePresence();
+        }
+        return res.status(200).json({ success: true, message: 'Repository removed from watchlist.' });
       }
-      res.json({ success: true, message: 'Repository removed from watchlist.' });
     } catch (err) {
       res.status(500).json({ success: false, error: err.message });
     }
@@ -472,7 +508,8 @@ export function createServer(options = {}) {
 
       const rateLimit = await githubService.getRateLimitStatus();
       const activeWebhooks = discordService.getActiveWebhooks();
-      const discordConfigured = activeWebhooks.length > 0;
+      const botStatus = discordBotService.getStatus();
+      const discordConfigured = Boolean(botStatus.online || activeWebhooks.length > 0);
       const queueStatus = getQueueStatus();
 
       res.json({
@@ -484,6 +521,7 @@ export function createServer(options = {}) {
           activeCount: active.length,
           discordConfigured,
           discordWebhooksCount: activeWebhooks.length,
+          bot: botStatus,
           rateLimit,
           queue: queueStatus,
           githubOwner: getSetting('github_owner') || process.env.GITHUB_OWNER || ''
@@ -494,14 +532,34 @@ export function createServer(options = {}) {
     }
   });
 
+  app.get('/api/bot/status', (req, res) => {
+    try {
+      res.json({ success: true, bot: discordBotService.getStatus() });
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
   app.get('/api/settings', (req, res) => {
     const settings = getAllSettings();
     const webhooks = discordService.getAllWebhooks();
+    const botStatus = discordBotService.getStatus();
     res.json({
       success: true,
       settings: {
+        // Discord Bot (Primary)
+        discord_bot_token: settings.discord_bot_token ? '••••••••' + settings.discord_bot_token.slice(-4) : (process.env.DISCORD_BOT_TOKEN ? '••••••••' : ''),
+        has_bot_token: Boolean(settings.discord_bot_token || process.env.DISCORD_BOT_TOKEN),
+        discord_client_id: settings.discord_client_id || process.env.DISCORD_CLIENT_ID || (discordBotService.client?.user?.id ?? ''),
+        discord_channel_id: settings.discord_channel_id || process.env.DISCORD_CHANNEL_ID || '',
+        discord_guild_id: settings.discord_guild_id || process.env.DISCORD_GUILD_ID || '',
+        bot_status: botStatus,
+
+        // Discord Webhooks (Secondary / Fallback)
         discord_webhooks: webhooks,
-        has_discord: discordService.getActiveWebhooks().length > 0,
+        has_discord: discordService.getActiveWebhooks().length > 0 || botStatus.online,
+
+        // GitHub Integration
         github_owner: settings.github_owner || process.env.GITHUB_OWNER || '',
         github_token: settings.github_token ? '••••••••' + settings.github_token.slice(-4) : (process.env.GITHUB_TOKEN ? '••••••••' : ''),
         has_token: Boolean(settings.github_token || process.env.GITHUB_TOKEN),
@@ -514,9 +572,13 @@ export function createServer(options = {}) {
     });
   });
 
-  app.post('/api/settings', (req, res) => {
+  app.post('/api/settings', async (req, res) => {
     try {
       const {
+        discord_bot_token,
+        discord_client_id,
+        discord_channel_id,
+        discord_guild_id,
         discord_webhooks,
         discord_webhook_url,
         github_owner,
@@ -526,18 +588,53 @@ export function createServer(options = {}) {
         default_polling_interval
       } = req.body;
 
+      let botReconnected = false;
+
+      // Handle Discord Bot Settings
+      if (discord_bot_token !== undefined && !discord_bot_token.startsWith('••••')) {
+        const cleanToken = discord_bot_token.trim();
+        setSetting('discord_bot_token', cleanToken);
+        discordBotService.setToken(cleanToken);
+        botReconnected = true;
+      }
+
+      if (discord_client_id !== undefined) {
+        const cleanClient = discord_client_id.trim();
+        setSetting('discord_client_id', cleanClient);
+        discordBotService.setClientId(cleanClient);
+      }
+
+      if (discord_channel_id !== undefined) {
+        const cleanChan = discord_channel_id.trim();
+        setSetting('discord_channel_id', cleanChan);
+        discordBotService.setDefaultChannelId(cleanChan);
+      }
+
+      if (discord_guild_id !== undefined) {
+        const cleanGuild = discord_guild_id.trim();
+        setSetting('discord_guild_id', cleanGuild);
+        discordBotService.setGuildId(cleanGuild);
+      }
+
+      if (botReconnected) {
+        discordBotService.restart().catch(err => {
+          console.warn('[DiscordBot] Reconnect notice:', err.message);
+        });
+      }
+
+      // Handle Discord Webhook Settings (Secondary)
       if (discord_webhooks !== undefined) {
         discordService.setWebhooks(discord_webhooks);
         setSetting('discord_webhooks', JSON.stringify(discordService.getAllWebhooks()));
         if (discordService.webhookUrl) {
           setSetting('discord_webhook_url', discordService.webhookUrl);
         }
-        discordService.setMockMode(discordService.getActiveWebhooks().length === 0);
+        discordService.setMockMode(discordService.getActiveWebhooks().length === 0 && !discordBotService.isReady());
       } else if (discord_webhook_url !== undefined && !discord_webhook_url.startsWith('••••')) {
         setSetting('discord_webhook_url', discord_webhook_url);
         discordService.setWebhookUrl(discord_webhook_url);
         setSetting('discord_webhooks', JSON.stringify(discordService.getAllWebhooks()));
-        discordService.setMockMode(!discord_webhook_url);
+        discordService.setMockMode(!discord_webhook_url && !discordBotService.isReady());
       }
 
       if (github_owner !== undefined) {
@@ -567,12 +664,29 @@ export function createServer(options = {}) {
         message: 'Settings saved successfully.',
         settings: {
           has_token: Boolean(getSetting('github_token') || process.env.GITHUB_TOKEN),
-          has_discord: discordService.getActiveWebhooks().length > 0,
+          has_bot_token: Boolean(getSetting('discord_bot_token') || process.env.DISCORD_BOT_TOKEN),
+          has_discord: discordService.getActiveWebhooks().length > 0 || discordBotService.isReady(),
+          bot_status: discordBotService.getStatus(),
           github_owner: getSetting('github_owner') || process.env.GITHUB_OWNER || ''
         }
       });
     } catch (err) {
       res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  app.post('/api/settings/discord-bot-test', async (req, res) => {
+    try {
+      const channelId = req.body.channel_id;
+      const result = await discordService.sendBotTestNotification(channelId);
+      res.json({
+        success: true,
+        message: 'Discord bot test notification delivered successfully!',
+        result
+      });
+    } catch (err) {
+      console.error('[Discord Bot Test] Error:', err.message);
+      res.status(400).json({ success: false, error: err.message });
     }
   });
 
@@ -595,17 +709,22 @@ export function createServer(options = {}) {
     }
   });
 
-  return { app, scheduler, githubService, discordService, pipeline };
+  return { app, scheduler, githubService, discordService, discordBotService, pipeline };
 }
 
 // Start standalone server if run directly
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const PORT = process.env.PORT || 3000;
-  const { app, scheduler, pipeline } = createServer();
+  const { app, scheduler, pipeline, discordBotService } = createServer();
   scheduler.start();
   pipeline.startQueueProcessor();
 
-  const server = app.listen(PORT, () => {
+  // Connect Discord Bot to Gateway if token configured
+  discordBotService.start().catch(err => {
+    console.warn('[DiscordBot] Initial Gateway login note:', err.message);
+  });
+
+  const server = app.listen(PORT, '0.0.0.0', () => {
     console.log(`\n🚀 RepoBeacon Server running at http://0.0.0.0:${PORT}`);
     console.log(`📡 GitHub Webhook Endpoint: http://0.0.0.0:${PORT}/api/webhooks/github`);
     console.log(`🩺 Health check endpoint:   http://0.0.0.0:${PORT}/health\n`);
@@ -616,6 +735,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     console.log('\n[RepoBeacon] Gracefully shutting down...');
     scheduler.stop();
     pipeline.stopQueueProcessor();
+    discordBotService.stop().catch(() => {});
     server.close(() => {
       console.log('[RepoBeacon] HTTP server closed.');
       process.exit(0);

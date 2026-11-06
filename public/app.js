@@ -99,6 +99,8 @@ function openAddModal(preferredType = 'watched') {
 
 function closeAddModal() {
   addModalEl.classList.remove('open');
+  const chanInput = document.getElementById('addRepoChannelId');
+  if (chanInput) chanInput.value = '';
 }
 
 function openSettingsModal() {
@@ -116,6 +118,11 @@ function openEditModal(repoId) {
 
   document.getElementById('editRepoId').value = repo.id;
   document.getElementById('editRepoNameDisplay').textContent = repo.full_name;
+
+  const chanInput = document.getElementById('editRepoChannelId');
+  if (chanInput) {
+    chanInput.value = repo.discord_channel_id || '';
+  }
 
   const isOwned = Boolean(repo.is_owned);
   const isWebhook = repo.monitoring_type === 'webhook';
@@ -266,6 +273,8 @@ function setupFormHandlers() {
       notify_reviews: document.getElementById('prefReviews')?.checked || false
     };
 
+    const discordChannelId = document.getElementById('addRepoChannelId')?.value.trim() || null;
+
     const submitBtn = document.getElementById('btnSubmitAdd');
     submitBtn.disabled = true;
     submitBtn.textContent = 'Adding...';
@@ -279,6 +288,7 @@ function setupFormHandlers() {
           is_owned: isOwned,
           monitoring_type: monitoringType,
           polling_interval_seconds: pollingInterval,
+          discord_channel_id: discordChannelId,
           preferences
         })
       });
@@ -327,6 +337,8 @@ function setupFormHandlers() {
       notify_reviews: document.getElementById('editPrefReviews').checked
     };
 
+    const discordChannelId = document.getElementById('editRepoChannelId')?.value.trim() || null;
+
     const submitBtn = document.getElementById('btnSaveEditRepo');
     submitBtn.disabled = true;
     submitBtn.textContent = 'Saving...';
@@ -339,6 +351,7 @@ function setupFormHandlers() {
           is_owned: isOwned,
           monitoring_type: monitoringType,
           polling_interval_seconds: pollingInterval,
+          discord_channel_id: discordChannelId,
           preferences
         })
       });
@@ -371,6 +384,34 @@ function setupFormHandlers() {
     btnAddWh.addEventListener('click', addDiscordWebhookRow);
   }
 
+  // Test Discord Bot Button
+  const btnTestBot = document.getElementById('btnTestDiscordBot');
+  if (btnTestBot) {
+    btnTestBot.addEventListener('click', async () => {
+      btnTestBot.disabled = true;
+      btnTestBot.textContent = 'Testing...';
+      const channelId = document.getElementById('discordChannelIdInput')?.value.trim() || null;
+      try {
+        const res = await fetch('/api/settings/discord-bot-test', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ channel_id: channelId })
+        });
+        const data = await res.json();
+        if (data.success) {
+          showToast('✅ Test embed delivered via Discord Bot!', 'success');
+        } else {
+          showToast(`❌ Discord Bot test failed: ${data.error}`, 'error');
+        }
+      } catch (err) {
+        showToast(`❌ Network error: ${err.message}`, 'error');
+      } finally {
+        btnTestBot.disabled = false;
+        btnTestBot.textContent = '🎯 Test Bot';
+      }
+    });
+  }
+
   // Save Settings
   settingsForm.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -380,7 +421,13 @@ function setupFormHandlers() {
       saveBtn.textContent = 'Saving...';
     }
 
-    // Collect all webhooks from the DOM
+    // Discord Bot Fields
+    const discordBotToken = document.getElementById('discordBotTokenInput')?.value.trim();
+    const discordClientId = document.getElementById('discordClientIdInput')?.value.trim();
+    const discordChannelId = document.getElementById('discordChannelIdInput')?.value.trim();
+    const discordGuildId = document.getElementById('discordGuildIdInput')?.value.trim();
+
+    // Collect all secondary webhooks from the DOM
     syncWebhooksFromDOM();
     const webhooks = appState.discordWebhooks
       .map(w => ({
@@ -397,18 +444,27 @@ function setupFormHandlers() {
     const adminApiKey = document.getElementById('adminApiKeyInput')?.value.trim() || '';
     const defaultInterval = document.getElementById('defaultPollingIntervalInput')?.value || '300';
 
+    const payload = {
+      discord_client_id: discordClientId,
+      discord_channel_id: discordChannelId,
+      discord_guild_id: discordGuildId,
+      discord_webhooks: webhooks,
+      github_owner: githubOwner,
+      github_token: githubToken,
+      github_webhook_secret: webhookSecret,
+      admin_api_key: adminApiKey,
+      default_polling_interval: defaultInterval
+    };
+
+    if (discordBotToken) {
+      payload.discord_bot_token = discordBotToken;
+    }
+
     try {
       const res = await fetch('/api/settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          discord_webhooks: webhooks,
-          github_owner: githubOwner,
-          github_token: githubToken,
-          github_webhook_secret: webhookSecret,
-          admin_api_key: adminApiKey,
-          default_polling_interval: defaultInterval
-        })
+        body: JSON.stringify(payload)
       });
 
       const data = await res.json();
@@ -755,13 +811,20 @@ async function loadStatus() {
       // Discord status
       const discordPill = document.getElementById('discordPill');
       const discordText = document.getElementById('discordText');
-      if (summary.discordConfigured) {
+      if (summary.bot && summary.bot.online) {
+        discordPill.className = 'status-pill discord-pill connected';
+        const name = summary.bot.user?.username || 'Bot';
+        discordText.textContent = `Bot: @${name}`;
+        discordPill.title = `Discord Bot Online (${summary.bot.user?.tag || ''}) • Ping: ${summary.bot.ping}ms • Guilds: ${summary.bot.guildCount}`;
+      } else if (summary.discordConfigured) {
         discordPill.className = 'status-pill discord-pill connected';
         const count = summary.discordWebhooksCount || 1;
-        discordText.textContent = count > 1 ? `Discord: ${count} Channels` : 'Discord: Connected';
+        discordText.textContent = count > 1 ? `Webhooks: ${count} Channels` : 'Webhook: Connected';
+        discordPill.title = 'Discord Webhook active';
       } else {
         discordPill.className = 'status-pill discord-pill';
         discordText.textContent = 'Discord: Standby (Mock)';
+        discordPill.title = 'Discord Bot or Webhook not configured';
       }
     }
   } catch (err) {
@@ -914,6 +977,67 @@ async function loadSettings() {
     const data = await res.json();
     if (data.success && data.settings) {
       const s = data.settings;
+
+      // Populate Discord Bot Fields
+      const botTokenEl = document.getElementById('discordBotTokenInput');
+      if (botTokenEl) {
+        botTokenEl.value = '';
+        botTokenEl.placeholder = s.has_bot_token ? '•••••••• (Saved, leave blank to keep)' : 'Bot token from Discord Developer Portal';
+      }
+
+      const botClientEl = document.getElementById('discordClientIdInput');
+      if (botClientEl) {
+        botClientEl.value = s.discord_client_id || '';
+      }
+
+      const botChannelEl = document.getElementById('discordChannelIdInput');
+      if (botChannelEl) {
+        botChannelEl.value = s.discord_channel_id || '';
+      }
+
+      const botGuildEl = document.getElementById('discordGuildIdInput');
+      if (botGuildEl) {
+        botGuildEl.value = s.discord_guild_id || '';
+      }
+
+      // Update Bot Status Card
+      const botCard = document.getElementById('botStatusCard');
+      if (botCard) {
+        if (s.bot_status && s.bot_status.online && s.bot_status.user) {
+          botCard.style.display = 'flex';
+          botCard.innerHTML = `
+            <img src="${s.bot_status.user.avatarUrl}" class="bot-avatar" alt="Bot Avatar">
+            <div class="bot-meta">
+              <div class="bot-tag">🟢 ${s.bot_status.user.tag}</div>
+              <div class="bot-sub">Guilds: ${s.bot_status.guildCount} • Gateway Latency: ${s.bot_status.ping}ms • Default Channel: ${s.discord_channel_id ? '#' + s.discord_channel_id : 'None'}</div>
+            </div>
+          `;
+        } else if (s.has_bot_token) {
+          botCard.style.display = 'flex';
+          botCard.innerHTML = `
+            <div class="bot-meta">
+              <div class="bot-tag">🟡 Bot Token Configured (Connecting to Gateway...)</div>
+              <div class="bot-sub">${s.bot_status?.lastError ? 'Notice: ' + s.bot_status.lastError : 'Establishing WebSocket handshake...'}</div>
+            </div>
+          `;
+        } else {
+          botCard.style.display = 'none';
+        }
+      }
+
+      // Update Invite Link Button
+      const inviteBtn = document.getElementById('btnBotInviteLink');
+      const effectiveClientId = s.discord_client_id || s.bot_status?.clientId;
+      if (inviteBtn) {
+        if (effectiveClientId) {
+          inviteBtn.href = `https://discord.com/oauth2/authorize?client_id=${effectiveClientId}&permissions=2147551232&scope=bot%20applications.commands`;
+          inviteBtn.style.display = 'inline-flex';
+        } else {
+          inviteBtn.style.display = 'none';
+        }
+      }
+
+      // Secondary Webhooks
       appState.discordWebhooks = s.discord_webhooks || [];
       if (appState.discordWebhooks.length === 0) {
         appState.discordWebhooks = [{

@@ -174,7 +174,9 @@ export class EventPipeline {
     }
 
     try {
-      const result = await this.discordService.dispatchNotification(event);
+      const repo = getRepositoryByFullName(event.repository);
+      const channelId = repo?.discord_channel_id || null;
+      const result = await this.discordService.dispatchNotification(event, channelId);
 
       if (result.success) {
         markDeliverySuccess(queueId);

@@ -1086,3 +1086,51 @@ input:focus,
     grid-template-columns: 1fr;
   }
 }
+
+/* Discord Bot Integration Styles */
+.bot-status-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  background: var(--bg-surface-raised);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-card);
+}
+.bot-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--bg-surface-hover);
+  border: 1px solid var(--border-hover);
+}
+.bot-meta {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.bot-tag {
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.bot-sub {
+  font-size: 11px;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+}
+.form-row {
+  display: flex;
+  gap: 12px;
+}
+@media (max-width: 600px) {
+  .form-row {
+    flex-direction: column;
+    gap: 0;
+  }
+}

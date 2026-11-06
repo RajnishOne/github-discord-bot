@@ -1,3 +1,10 @@
+# Dependencies
+node_modules/
+
+# Environment
+.env
+.env.local
+
 # SQLite WAL and lock files
 *.sqlite-shm
 *.sqlite-wal
@@ -10,4 +17,5 @@ npm-debug.log*
 # OS artifacts
 .DS_Store
 Thumbs.db
+
 

@@ -335,6 +335,17 @@
           </select>
         </div>
 
+        <div class="form-group">
+          <label for="addRepoChannelId">Target Discord Channel ID (Optional)</label>
+          <input 
+            type="text" 
+            id="addRepoChannelId" 
+            placeholder="Leave blank to use default Discord bot channel"
+            autocomplete="off"
+          >
+          <div class="field-hint">Routes notifications for this repository to a specific channel.</div>
+        </div>
+
         <div class="modal-footer">
           <button type="button" class="btn btn-ghost" id="btnCancelAdd">Cancel</button>
           <button type="submit" class="btn btn-primary" id="btnSubmitAdd">Start monitoring</button>
@@ -454,6 +465,17 @@
           </div>
         </div>
 
+        <div class="form-group">
+          <label for="editRepoChannelId">Target Discord Channel ID (Optional)</label>
+          <input 
+            type="text" 
+            id="editRepoChannelId" 
+            placeholder="Leave blank to use default Discord bot channel"
+            autocomplete="off"
+          >
+          <div class="field-hint">Routes notifications for this repository to a specific channel.</div>
+        </div>
+
         <div class="modal-footer">
           <button type="button" class="btn btn-ghost" id="btnCancelEdit">Cancel</button>
           <button type="submit" class="btn btn-primary" id="btnSaveEditRepo">Save changes</button>
@@ -473,27 +495,101 @@
       </div>
 
       <form id="settingsForm">
-        <!-- Section 1: Multiple Discord Webhooks -->
+        <!-- Section 1: Discord Bot (Primary) -->
         <div class="settings-section-header">
+          <div class="settings-section-title">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M12 2a2 2 0 0 1 2 2v2a2 2 0 0 1-2 2 2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z"></path>
+              <rect x="3" y="8" width="18" height="12" rx="4"></rect>
+              <circle cx="9" cy="14" r="1.5" fill="currentColor"></circle>
+              <circle cx="15" cy="14" r="1.5" fill="currentColor"></circle>
+              <line x1="9" y1="18" x2="15" y2="18"></line>
+            </svg>
+            Discord Bot (Primary Integration)
+          </div>
+          <div style="display: flex; gap: 8px;">
+            <a href="#" target="_blank" class="btn btn-xs btn-secondary" id="btnBotInviteLink" style="display: none; text-decoration: none;">
+              🔗 Add Bot to Server
+            </a>
+            <button type="button" class="btn btn-xs btn-secondary" id="btnTestDiscordBot">
+              🎯 Test Bot
+            </button>
+          </div>
+        </div>
+        <div class="field-hint" style="margin-bottom: 12px;">
+          Connects RepoBeacon directly as a Discord Bot member. Supports slash commands (/watch, /repos, /status) and direct channel dispatch.
+        </div>
+
+        <div id="botStatusCard" class="bot-status-card" style="display: none; margin-bottom: 16px;">
+          <!-- Dynamically populated: avatar, tag, online dot, ping, guild count -->
+        </div>
+
+        <div class="form-group">
+          <label for="discordBotTokenInput">Discord Bot Token</label>
+          <input 
+            type="password" 
+            id="discordBotTokenInput" 
+            placeholder="Bot token from Discord Developer Portal"
+            autocomplete="off"
+          >
+          <div class="field-hint">From Discord Developer Portal → Applications → Bot → Reset Token.</div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group" style="flex: 1;">
+            <label for="discordClientIdInput">Application / Client ID</label>
+            <input 
+              type="text" 
+              id="discordClientIdInput" 
+              placeholder="e.g. 123456789012345678"
+              autocomplete="off"
+            >
+            <div class="field-hint">Powers slash commands and bot invite link.</div>
+          </div>
+          <div class="form-group" style="flex: 1;">
+            <label for="discordChannelIdInput">Default Channel ID</label>
+            <input 
+              type="text" 
+              id="discordChannelIdInput" 
+              placeholder="e.g. 123456789012345678"
+              autocomplete="off"
+            >
+            <div class="field-hint">Right-click channel in Discord → Copy Channel ID.</div>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="discordGuildIdInput">Guild / Server ID (Optional)</label>
+          <input 
+            type="text" 
+            id="discordGuildIdInput" 
+            placeholder="Optional for instant guild-specific slash commands"
+            autocomplete="off"
+          >
+          <div class="field-hint">If specified, slash commands sync instantly in this server without waiting for global cache.</div>
+        </div>
+
+        <!-- Section 2: Multiple Discord Webhooks (Secondary / Fallback) -->
+        <div class="settings-section-header" style="margin-top: 24px;">
           <div class="settings-section-title">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
             </svg>
-            Discord webhook channels
+            Discord Webhooks (Secondary / Fallback)
           </div>
           <button type="button" class="btn btn-xs btn-secondary" id="btnAddWebhookRow">
-            + Add channel
+            + Add webhook
           </button>
         </div>
         <div class="field-hint" style="margin-bottom: 12px;">
-          Configure target Discord channels. Events are dispatched in parallel to active webhooks.
+          Fallback delivery method. Used when Bot Token is not configured or as secondary parallel destinations.
         </div>
 
         <div class="webhooks-list-container" id="discordWebhooksContainer">
           <!-- Populated dynamically by app.js -->
         </div>
 
-        <!-- Section 2: GitHub Account & Token -->
+        <!-- Section 3: GitHub Account & Token -->
         <div class="settings-section-header" style="margin-top: 24px;">
           <div class="settings-section-title">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">

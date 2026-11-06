@@ -1,6 +1,7 @@
 export class DiscordService {
   constructor(options = {}) {
     this.webhooks = [];
+    this.botService = options.botService || null;
     this.fetchFn = options.fetchFn || globalThis.fetch;
     this.mockMode = options.mockMode || false;
     this.dispatchedLogs = [];
@@ -10,6 +11,10 @@ export class DiscordService {
     } else if (options.webhookUrl) {
       this.setWebhookUrl(options.webhookUrl);
     }
+  }
+
+  setBotService(botService) {
+    this.botService = botService;
   }
 
   setWebhookUrl(url) {
@@ -161,7 +166,7 @@ export class DiscordService {
     return embed;
   }
 
-  async dispatchNotification(event) {
+  async dispatchNotification(event, channelId = null) {
     const embed = this.createEmbed(event);
     const payload = {
       username: 'RepoBeacon',
@@ -179,8 +184,10 @@ export class DiscordService {
     });
 
     const activeWebhooks = this.getActiveWebhooks();
+    const hasBot = Boolean(this.botService && this.botService.isReady());
+    const targetChannel = channelId || event?.discord_channel_id || this.botService?.defaultChannelId;
 
-    if (this.mockMode || activeWebhooks.length === 0) {
+    if (this.mockMode || (!hasBot && activeWebhooks.length === 0)) {
       return {
         success: true,
         mock: true,
@@ -189,35 +196,81 @@ export class DiscordService {
       };
     }
 
-    // Deliver to all active Discord Webhooks in parallel
-    const deliveryPromises = activeWebhooks.map(async (wh) => {
+    let botDeliveryResult = null;
+    let botError = null;
+
+    // 1. PRIMARY DELIVERY: Send via Discord Bot Client to channel
+    if (hasBot && targetChannel) {
       try {
-        const res = await this.sendWithRetry(wh.url, payload);
-        return { id: wh.id, name: wh.name, url: wh.url, ...res };
+        botDeliveryResult = await this.botService.sendToChannel(targetChannel, { embeds: [embed] });
       } catch (err) {
-        return { id: wh.id, name: wh.name, url: wh.url, success: false, error: err.message };
+        botError = err.message;
+        console.warn(`[DiscordService] Primary Bot delivery failed for channel ${targetChannel}: ${err.message}. Checking secondary webhooks...`);
       }
-    });
-
-    const results = await Promise.allSettled(deliveryPromises);
-    const resolved = results.map(r => r.status === 'fulfilled' ? r.value : { success: false, error: r.reason?.message });
-
-    const anySuccess = resolved.some(r => r.success);
-    const allFailed = resolved.every(r => !r.success);
-
-    if (allFailed && resolved.length > 0) {
-      const firstError = resolved[0].error || 'All Discord deliveries failed.';
-      const err = new Error(firstError);
-      err.deliveries = resolved;
-      throw err;
     }
 
-    return {
-      success: anySuccess,
-      deliveries: resolved,
-      statusCode: 204,
-      payload
+    // 2. SECONDARY DELIVERY: Deliver to all active Discord Webhooks in parallel
+    let webhookDeliveries = [];
+    if (activeWebhooks.length > 0) {
+      const deliveryPromises = activeWebhooks.map(async (wh) => {
+        try {
+          const res = await this.sendWithRetry(wh.url, payload);
+          return { id: wh.id, name: wh.name, url: wh.url, ...res };
+        } catch (err) {
+          return { id: wh.id, name: wh.name, url: wh.url, success: false, error: err.message };
+        }
+      });
+
+      const results = await Promise.allSettled(deliveryPromises);
+      webhookDeliveries = results.map(r => r.status === 'fulfilled' ? r.value : { success: false, error: r.reason?.message });
+    }
+
+    const anyWebhookSuccess = webhookDeliveries.some(r => r.success);
+    const botSuccess = Boolean(botDeliveryResult && botDeliveryResult.success);
+
+    if (botSuccess || anyWebhookSuccess) {
+      return {
+        success: true,
+        deliveredVia: botSuccess ? (anyWebhookSuccess ? 'both' : 'bot') : 'webhook',
+        botDelivery: botDeliveryResult,
+        deliveries: webhookDeliveries,
+        statusCode: 204,
+        payload
+      };
+    }
+
+    // If both failed
+    const errorDetail = botError || (webhookDeliveries[0]?.error) || 'Discord delivery failed.';
+    const err = new Error(errorDetail);
+    err.botError = botError;
+    err.deliveries = webhookDeliveries;
+    throw err;
+  }
+
+  async sendBotTestNotification(customChannelId = null) {
+    if (!this.botService || !this.botService.isReady()) {
+      throw new Error('Discord Bot is not connected. Configure Bot Token first or check bot gateway status.');
+    }
+
+    const targetChannel = customChannelId || this.botService.defaultChannelId;
+    if (!targetChannel) {
+      throw new Error('No target channel ID provided and no default channel configured.');
+    }
+
+    const testEmbed = {
+      title: '🎯 RepoBeacon Discord Bot Test Connection',
+      description: 'RepoBeacon Discord Bot is successfully connected to your server! Telemetry and notifications are routing properly.',
+      color: 0x10B981,
+      fields: [
+        { name: 'Channel', value: `<#${targetChannel}>`, inline: true },
+        { name: 'Status', value: '✅ Connected & Transmitting', inline: true },
+        { name: 'Timestamp', value: new Date().toLocaleTimeString(), inline: true }
+      ],
+      footer: { text: 'RepoBeacon Notification System' },
+      timestamp: new Date().toISOString()
     };
+
+    return await this.botService.sendToChannel(targetChannel, { embeds: [testEmbed] });
   }
 
   async sendTestNotification(customUrl = null) {

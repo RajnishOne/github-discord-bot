@@ -31,6 +31,7 @@
   "author": "Rajnish",
   "license": "MIT",
   "dependencies": {
+    "discord.js": "^14.28.1",
     "express": "^4.21.2"
   }
 }

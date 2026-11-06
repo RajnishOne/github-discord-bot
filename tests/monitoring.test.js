@@ -25,6 +25,7 @@ import {
 import { EventNormalizer } from '../src/services/normalizer.js';
 import { EventPipeline } from '../src/services/deduplicator.js';
 import { DiscordService } from '../src/services/discord.js';
+import { DiscordBotService } from '../src/services/discord-bot.js';
 import { PollingScheduler } from '../src/services/scheduler.js';
 import { createServer } from '../src/server.js';
 
@@ -689,6 +690,190 @@ test('RepoBeacon Comprehensive Test Suite', async (t) => {
     assert.equal(editRes.body.repository.preferences.notify_pushes, true);
     assert.equal(editRes.body.repository.preferences.notify_comments, true);
     assert.equal(editRes.body.repository.preferences.notify_reviews, true);
+  });
+
+  // -----------------------------------------------------------
+  // 13. Discord Bot Service Lifecycle, Channel Dispatch & Fallback
+  // -----------------------------------------------------------
+  await t.test('13. Discord Bot Service Lifecycle, Channel Dispatch & Secondary Fallback', async () => {
+    setupTestDb();
+
+    // 1. Unconfigured bot reports status correctly
+    const bot = new DiscordBotService();
+    assert.equal(bot.isReady(), false);
+    assert.equal(bot.getStatus().online, false);
+
+    // 2. Mock connected bot client
+    const deliveredChannelMessages = [];
+    bot.token = 'mock_bot_token_12345';
+    bot.clientId = '123456789012345678';
+    bot.defaultChannelId = '111222333444555666';
+
+    const mockChannel = {
+      id: '111222333444555666',
+      name: 'github-feed',
+      isTextBased: () => true,
+      send: async (payload) => {
+        deliveredChannelMessages.push(payload);
+        return { id: 'msg_99999' };
+      }
+    };
+
+    bot.client = {
+      isReady: () => true,
+      user: {
+        id: '123456789012345678',
+        tag: 'RepoBeacon#1234',
+        username: 'RepoBeacon',
+        displayAvatarURL: () => 'https://cdn.discordapp.com/avatars/123/abc.png',
+        setActivity: () => {}
+      },
+      ws: { ping: 25 },
+      guilds: { cache: { size: 3 } },
+      channels: {
+        fetch: async (id) => {
+          if (id === '111222333444555666' || id === '999888777') return mockChannel;
+          throw new Error('Unknown channel');
+        }
+      }
+    };
+
+    assert.equal(bot.isReady(), true);
+    const status = bot.getStatus();
+    assert.equal(status.online, true);
+    assert.equal(status.user.tag, 'RepoBeacon#1234');
+    assert.equal(status.ping, 25);
+
+    // 3. Test primary delivery via Bot in DiscordService
+    const discord = new DiscordService({
+      botService: bot,
+      mockMode: false
+    });
+
+    const event = {
+      dedupKey: 'owner/repo:release:1',
+      repository: 'owner/repo',
+      category: 'release',
+      title: 'v1.0.0 Released',
+      url: 'https://github.com/owner/repo/releases/tag/v1.0.0',
+      description: 'First stable release'
+    };
+
+    const result = await discord.dispatchNotification(event);
+    assert.equal(result.success, true);
+    assert.equal(result.deliveredVia, 'bot');
+    assert.equal(deliveredChannelMessages.length, 1);
+    assert.equal(deliveredChannelMessages[0].embeds[0].title, 'v1.0.0 Released');
+
+    // 4. Test secondary fallback to webhooks when bot delivery fails
+    let webhookDeliveries = [];
+    const mockFetch = async (url) => {
+      webhookDeliveries.push(url);
+      return { ok: true, status: 204, json: async () => ({}) };
+    };
+
+    const fallbackDiscord = new DiscordService({
+      fetchFn: mockFetch,
+      webhooks: [{ id: 'wh_1', name: 'Fallback Alerts', url: 'https://discord.com/api/webhooks/123456789/fallbacktoken', enabled: true }]
+    });
+
+    // Failing bot service
+    const failingBot = new DiscordBotService();
+    failingBot.client = {
+      isReady: () => true,
+      channels: {
+        fetch: async () => { throw new Error('Missing Permissions'); }
+      }
+    };
+    failingBot.defaultChannelId = 'bad_channel_id';
+    fallbackDiscord.setBotService(failingBot);
+
+    const fallbackResult = await fallbackDiscord.dispatchNotification(event);
+    assert.equal(fallbackResult.success, true);
+    assert.equal(fallbackResult.deliveredVia, 'webhook');
+    assert.equal(webhookDeliveries.length, 1);
+    assert.equal(webhookDeliveries[0], 'https://discord.com/api/webhooks/123456789/fallbacktoken');
+  });
+
+  // -----------------------------------------------------------
+  // 14. Discord Bot Web Settings API & Per-Repository Channel Routing
+  // -----------------------------------------------------------
+  await t.test('14. Discord Bot Web Settings API & Per-Repository Channel Routing', async () => {
+    setupTestDb();
+
+    const mockDelivered = [];
+    const bot = new DiscordBotService({ mockMode: true });
+    bot.defaultChannelId = 'default_chan_123';
+    bot.sendToChannel = async (cid, payload) => {
+      mockDelivered.push({ cid, payload });
+      return { success: true, messageId: 'm1', channelId: cid };
+    };
+
+    const mockGh = new GitHubService({
+      fetchFn: async () => ({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          id: 555666,
+          name: 'chan-routed-repo',
+          owner: { login: 'owner' },
+          full_name: 'owner/chan-routed-repo',
+          private: false,
+          stargazers_count: 10,
+          forks_count: 2,
+          open_issues_count: 1
+        })
+      })
+    });
+    mockGh.getEvents = async () => ({ events: [], etag: 'etag-1' });
+
+    const discord = new DiscordService({ botService: bot, mockMode: false });
+    const { app } = createServer({ skipDbInit: true, discordService: discord, discordBotService: bot, githubService: mockGh });
+
+    // 1. Test POST /api/settings to save Discord Bot credentials
+    const saveRes = await makeRequest(app, 'POST', '/api/settings', {
+      body: {
+        discord_bot_token: 'bot_token_secret_xyz',
+        discord_client_id: '987654321',
+        discord_channel_id: 'default_chan_123'
+      }
+    });
+    assert.equal(saveRes.statusCode, 200);
+    assert.equal(saveRes.body.settings.has_bot_token, true);
+
+    // 2. Test GET /api/settings returns masked bot token
+    const getRes = await makeRequest(app, 'GET', '/api/settings');
+    assert.equal(getRes.statusCode, 200);
+    assert.equal(getRes.body.settings.has_bot_token, true);
+    assert.ok(getRes.body.settings.discord_bot_token.startsWith('••••'));
+    assert.equal(getRes.body.settings.discord_client_id, '987654321');
+    assert.equal(getRes.body.settings.discord_channel_id, 'default_chan_123');
+
+    // 3. Test POST /api/settings/discord-bot-test
+    const testBotRes = await makeRequest(app, 'POST', '/api/settings/discord-bot-test', {
+      body: { channel_id: 'custom_chan_789' }
+    });
+    assert.equal(testBotRes.statusCode, 200);
+    assert.equal(testBotRes.body.success, true);
+    assert.equal(mockDelivered.length, 1);
+    assert.ok(mockDelivered[0].payload.embeds[0].title.includes('Test Connection'));
+    assert.equal(mockDelivered[0].cid, 'custom_chan_789');
+
+    // 4. Test Repository Creation with custom channel routing
+    const addRepoRes = await makeRequest(app, 'POST', '/api/repositories', {
+      body: {
+        input: 'owner/chan-routed-repo',
+        is_owned: false,
+        monitoring_type: 'polling',
+        discord_channel_id: 'custom_chan_789'
+      }
+    });
+    assert.equal(addRepoRes.statusCode, 201);
+    assert.equal(addRepoRes.body.repository.discord_channel_id, 'custom_chan_789');
+
+    // Verify channel ID is saved in DB
+    const savedRepo = getRepositoryById(addRepoRes.body.repository.id);
+    assert.equal(savedRepo.discord_channel_id, 'custom_chan_789');
   });
 
 });

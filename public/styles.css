@@ -96,10 +96,18 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--bg-surface-raised);
-  border: 1px solid var(--border-subtle);
+  background: transparent;
   border-radius: var(--radius-md);
-  color: var(--text-primary);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.brand-icon-img {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+  display: block;
+  border-radius: var(--radius-md);
 }
 
 .brand-meta {

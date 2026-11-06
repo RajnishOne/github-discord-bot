@@ -1,10 +1,20 @@
-# RepoBeacon
+<p align="center">
+  <img src="public/favicon-96x96.png" alt="RepoBeacon Logo" width="80" height="80" />
+</p>
 
-> Real-time GitHub repository activity monitoring and Discord notification dispatcher with durable outbox delivery and adaptive public API polling.
+<h1 align="center">RepoBeacon</h1>
 
-[![Publish Docker Image](https://github.com/RajnishOne/repo-beacon/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/RajnishOne/repo-beacon/actions/workflows/docker-publish.yml)
-[![Docker Image](https://img.shields.io/badge/GHCR-ghcr.io%2Frajnishone%2Frepo--beacon-blue?logo=docker)](https://github.com/RajnishOne/repo-beacon/pkgs/container/repo-beacon)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+<p align="center">
+  <strong>Real-time GitHub repository activity monitoring and Discord notification dispatcher with durable outbox delivery and adaptive public API polling.</strong>
+</p>
+
+<p align="center">
+  <a href="https://github.com/RajnishOne/repo-beacon/actions/workflows/docker-publish.yml"><img src="https://github.com/RajnishOne/repo-beacon/actions/workflows/docker-publish.yml/badge.svg" alt="Publish Docker Image" /></a>
+  <a href="https://github.com/RajnishOne/repo-beacon/pkgs/container/repo-beacon"><img src="https://img.shields.io/badge/GHCR-ghcr.io%2Frajnishone%2Frepo--beacon-blue?logo=docker" alt="Docker Image" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT" /></a>
+</p>
+
+<br>
 
 ![RepoBeacon Dashboard](docs/screenshots/dashboard.png)
 

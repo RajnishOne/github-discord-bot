@@ -17,9 +17,9 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/RajnishOne/repobeacon.git"
+    "url": "git+https://github.com/RajnishOne/repo-beacon.git"
   },
-  "homepage": "https://github.com/RajnishOne/repobeacon#readme",
+  "homepage": "https://github.com/RajnishOne/repo-beacon#readme",
   "keywords": [
     "repobeacon",
     "github",

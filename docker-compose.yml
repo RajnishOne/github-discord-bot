@@ -1,7 +1,7 @@
 services:
-  repobeacon:
-    image: ghcr.io/rajnishone/repobeacon:latest
-    container_name: repobeacon
+  repo-beacon:
+    image: ghcr.io/rajnishone/repo-beacon:latest
+    container_name: repo-beacon
     restart: unless-stopped
 
     environment:
@@ -19,7 +19,7 @@ services:
       - DEFAULT_POLLING_INTERVAL=${DEFAULT_POLLING_INTERVAL:-300}
 
     volumes:
-      - ${DATA_PATH:-/docker-data/repobeacon/data}:/app/data
+      - ${DATA_PATH:-/docker-data/repo-beacon/data}:/app/data
 
     ports:
       - 3000:3000

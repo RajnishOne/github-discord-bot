@@ -2,8 +2,8 @@
 
 > Real-time GitHub repository activity monitoring and Discord notification dispatcher with durable outbox delivery and adaptive public API polling.
 
-[![Publish Docker Image](https://github.com/RajnishOne/repobeacon/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/RajnishOne/repobeacon/actions/workflows/docker-publish.yml)
-[![Docker Image](https://img.shields.io/badge/GHCR-ghcr.io%2Frajnishone%2Frepobeacon-blue?logo=docker)](https://github.com/RajnishOne/repobeacon/pkgs/container/repobeacon)
+[![Publish Docker Image](https://github.com/RajnishOne/repo-beacon/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/RajnishOne/repo-beacon/actions/workflows/docker-publish.yml)
+[![Docker Image](https://img.shields.io/badge/GHCR-ghcr.io%2Frajnishone%2Frepo--beacon-blue?logo=docker)](https://github.com/RajnishOne/repo-beacon/pkgs/container/repo-beacon)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 ![RepoBeacon Dashboard](docs/screenshots/dashboard.png)
@@ -86,7 +86,7 @@ flowchart TD
 The multi-architecture Docker image is automatically published to GitHub Container Registry (**GHCR**) for `linux/amd64` (Intel/AMD) and `linux/arm64` (Apple Silicon, Raspberry Pi, ARM servers):
 
 ```text
-ghcr.io/rajnishone/repobeacon:latest
+ghcr.io/rajnishone/repo-beacon:latest
 ```
 
 ### Option A: Using Docker Compose (Recommended)
@@ -94,16 +94,16 @@ ghcr.io/rajnishone/repobeacon:latest
 You don't need to clone the full repository code—simply create a folder on your server with a `docker-compose.yml` and `.env` file:
 
 ```bash
-mkdir -p /docker-data/repobeacon/data
-chown -R 1000:100 /docker-data/repobeacon/data
+mkdir -p /docker-data/repo-beacon/data
+chown -R 1000:100 /docker-data/repo-beacon/data
 ```
 
 Create `docker-compose.yml`:
 ```yaml
 services:
-  repobeacon:
-    image: ghcr.io/rajnishone/repobeacon:latest
-    container_name: repobeacon
+  repo-beacon:
+    image: ghcr.io/rajnishone/repo-beacon:latest
+    container_name: repo-beacon
     restart: unless-stopped
 
     environment:
@@ -121,7 +121,7 @@ services:
       - DEFAULT_POLLING_INTERVAL=${DEFAULT_POLLING_INTERVAL:-300}
 
     volumes:
-      - /docker-data/repobeacon/data:/app/data
+      - /docker-data/repo-beacon/data:/app/data
 
     ports:
       - 3000:3000
@@ -166,14 +166,14 @@ docker compose logs -f
 
 ```bash
 docker run -d \
-  --name repobeacon \
+  --name repo-beacon \
   --restart unless-stopped \
   -p 3000:3000 \
   -v $(pwd)/data:/app/data \
   -e DISCORD_WEBHOOK_URL="https://discord.com/api/webhooks/..." \
   -e GITHUB_TOKEN="ghp_..." \
   -e GITHUB_OWNER="your-username" \
-  ghcr.io/rajnishone/repobeacon:latest
+  ghcr.io/rajnishone/repo-beacon:latest
 ```
 
 ---

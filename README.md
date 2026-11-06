@@ -116,7 +116,6 @@ services:
       - GITHUB_OWNER=${GITHUB_OWNER:-RajnishOne}
       - GITHUB_WEBHOOK_SECRET=${GITHUB_WEBHOOK_SECRET}
       - GITHUB_TOKEN=${GITHUB_TOKEN}
-      - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL}
       - ADMIN_API_KEY=${ADMIN_API_KEY}
       - DEFAULT_POLLING_INTERVAL=${DEFAULT_POLLING_INTERVAL:-300}
 
@@ -285,7 +284,9 @@ To receive real-time webhooks without adding webhooks manually repository by rep
 1. In Discord, navigate to the text channel where you want notifications.
 2. Click the gear icon (**Edit Channel**) → **Integrations** → **Webhooks** → **New Webhook**.
 3. Name it `RepoBeacon` and optionally set an icon.
-4. Click **Copy Webhook URL**. Save this URL for your `.env` file (`DISCORD_WEBHOOK_URL`).
+4. Click **Copy Webhook URL**.
+5. In RepoBeacon, open the Web UI → click **⚙️ Settings** → under **Discord webhook channels**, click **+ Add channel**, paste your Webhook URL, and click **Test** & **Save Settings**. (You can add multiple channels for parallel dispatch).
+6. *(Optional)* You can also pass a fallback URL via `DISCORD_WEBHOOK_URL` in `.env` if desired.
 
 ---
 

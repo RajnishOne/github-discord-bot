@@ -56,7 +56,6 @@ export function initDatabase(dbPath = null) {
       last_event_id TEXT,
       health_status TEXT NOT NULL DEFAULT 'healthy',
       health_message TEXT,
-      discord_channel_id TEXT DEFAULT NULL,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
@@ -126,9 +125,6 @@ export function initDatabase(dbPath = null) {
   try {
     db.exec(`ALTER TABLE repository_preferences ADD COLUMN notify_reviews INTEGER NOT NULL DEFAULT 1;`);
   } catch {}
-  try {
-    db.exec(`ALTER TABLE repositories ADD COLUMN discord_channel_id TEXT DEFAULT NULL;`);
-  } catch {}
 
   currentDb = db;
   return db;
@@ -172,8 +168,8 @@ export function addRepository(repoData) {
     INSERT INTO repositories (
       github_id, owner, name, full_name, is_owned, is_private, 
       monitoring_type, enabled, polling_interval_seconds, health_status, health_message,
-      discord_channel_id, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?)
+      created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const result = stmt.run(
@@ -187,7 +183,6 @@ export function addRepository(repoData) {
     repoData.polling_interval_seconds || 300,
     repoData.health_status || 'healthy',
     repoData.health_message || null,
-    repoData.discord_channel_id || null,
     repoData.created_at || nowIso,
     nowIso
   );
@@ -283,7 +278,7 @@ export function updateRepository(id, updates) {
   const allowedFields = [
     'enabled', 'polling_interval_seconds', 'last_polled_at', 
     'last_etag', 'last_event_id', 'health_status', 'health_message',
-    'monitoring_type', 'is_owned', 'discord_channel_id'
+    'monitoring_type', 'is_owned'
   ];
 
   for (const field of allowedFields) {
@@ -564,7 +559,6 @@ function formatRepositoryRow(row) {
     last_event_id: row.last_event_id,
     health_status: row.health_status,
     health_message: row.health_message,
-    discord_channel_id: row.discord_channel_id || null,
     created_at: row.created_at,
     updated_at: row.updated_at,
     preferences: {

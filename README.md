@@ -116,6 +116,7 @@ services:
       - GITHUB_OWNER=${GITHUB_OWNER:-RajnishOne}
       - GITHUB_WEBHOOK_SECRET=${GITHUB_WEBHOOK_SECRET}
       - GITHUB_TOKEN=${GITHUB_TOKEN}
+      - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL}
       - ADMIN_API_KEY=${ADMIN_API_KEY}
       - DEFAULT_POLLING_INTERVAL=${DEFAULT_POLLING_INTERVAL:-300}
 
@@ -279,42 +280,12 @@ To receive real-time webhooks without adding webhooks manually repository by rep
 
 ---
 
-## 7. Discord Integration (Bot Primary + Webhook Secondary)
+## 7. Discord Incoming Webhook Setup
 
-RepoBeacon uses a **dual-layer Discord architecture**:
-* **Primary:** Native Discord Bot client connected to Discord Gateway with member presence, channel routing, and slash command support.
-* **Secondary / Fallback:** Discord Incoming Webhook URLs for zero-bot fallback or parallel channel delivery.
-
-### Option A: Discord Bot Setup (Primary & Recommended)
-
-1. Go to the [Discord Developer Portal](https://discord.com/developers/applications) and click **New Application**. Name it `RepoBeacon`.
-2. In the left sidebar, click **Bot**:
-   - Click **Reset Token** and copy your **Bot Token** (`DISCORD_BOT_TOKEN`).
-3. In the left sidebar, click **OAuth2** → **URL Generator**:
-   - **Scopes:** Select `bot` and `applications.commands`.
-   - **Bot Permissions:** Select `Send Messages`, `Embed Links`, `View Channels`, `Use External Emojis`.
-4. Copy the generated invite link at the bottom, paste it into your browser, and authorize RepoBeacon into your Discord server.
-5. In Discord, right-click the text channel where you want notifications (enable Discord Developer Mode in Advanced User Settings if needed) and click **Copy Channel ID** (`DISCORD_CHANNEL_ID`).
-6. Enter `DISCORD_BOT_TOKEN`, `DISCORD_CLIENT_ID`, and `DISCORD_CHANNEL_ID` in your `.env` or through the Web UI Settings (**⚙️ Settings → Discord Bot**).
-
-#### Built-in Discord Slash Commands
-Once invited, the bot automatically registers slash commands in your server:
-* `/status` — Displays monitoring health, GitHub API quota, and outbox queue backlog.
-* `/repos` — Lists all monitored repositories (owned vs watched).
-* `/watch <repository> [interval]` — Adds a public repository to your watchlist directly from Discord.
-* `/unwatch <repository>` — Removes a repository from monitoring.
-* `/poll [repository]` — Triggers an immediate poll check on a repository.
-* `/setchannel [channel]` — Updates the default notification channel for alerts.
-* `/test` — Sends an instant verification embed to confirm bot permissions.
-
----
-
-### Option B: Discord Incoming Webhook Setup (Secondary / Fallback)
-
-If you don't want to use a Bot Token or want a secondary channel destination:
-1. In Discord, navigate to your channel → click the gear icon (**Edit Channel**) → **Integrations** → **Webhooks** → **New Webhook**.
-2. Name it `RepoBeacon` and click **Copy Webhook URL**.
-3. Add it to `.env` (`DISCORD_WEBHOOK_URL`) or add multiple webhook channels in the Web UI Settings.
+1. In Discord, navigate to the text channel where you want notifications.
+2. Click the gear icon (**Edit Channel**) → **Integrations** → **Webhooks** → **New Webhook**.
+3. Name it `RepoBeacon` and optionally set an icon.
+4. Click **Copy Webhook URL**. Save this URL for your `.env` file (`DISCORD_WEBHOOK_URL`).
 
 ---
 
@@ -323,15 +294,11 @@ If you don't want to use a Bot Token or want a secondary channel destination:
 | Variable | Description | Default / Example |
 | :--- | :--- | :--- |
 | `PORT` | Local container port | `3000` |
-| `DATA_PATH` | Persistent host directory for SQLite | `./data` (or `/docker-data/repo-beacon/data`) |
-| `DISCORD_BOT_TOKEN` | Discord Bot Token (Primary) | `MTE...` |
-| `DISCORD_CLIENT_ID` | Discord Application / Client ID | `123456789...` |
-| `DISCORD_CHANNEL_ID` | Default notification Discord Channel ID | `111222333...` |
-| `DISCORD_GUILD_ID` | Optional Guild ID for instant slash command sync | `999888777...` |
-| `DISCORD_WEBHOOK_URL` | Discord Incoming Webhook URL (Secondary / Fallback) | `https://discord.com/api/webhooks/...` |
+| `DATA_PATH` | Persistent host directory for SQLite | `./data` (or `/docker-data/repobeacon/data`) |
 | `GITHUB_OWNER` | Your GitHub username | `octocat` |
 | `GITHUB_WEBHOOK_SECRET`| The secret set in GitHub App settings | `your_secret_here` |
 | `GITHUB_TOKEN` | Personal Access Token (for 5,000 req/hr & discovery) | `ghp_...` |
+| `DISCORD_WEBHOOK_URL` | Discord Incoming Webhook URL | `https://discord.com/api/webhooks/...` |
 | `ADMIN_API_KEY` | Optional security key for admin API/CLI | `secure_token` |
 | `DEFAULT_POLLING_INTERVAL`| Default poll interval in seconds for external repos | `300` |
 

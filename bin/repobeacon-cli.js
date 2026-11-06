@@ -7,10 +7,8 @@ import {
   retryDeliveryItem,
   retryAllDeadLetters,
   getAllRepositories,
-  deleteRepository,
-  getSetting
+  deleteRepository
 } from '../src/db/database.js';
-import { DiscordBotService } from '../src/services/discord-bot.js';
 
 const command = process.argv[2];
 const arg1 = process.argv[3];
@@ -19,38 +17,6 @@ initDatabase();
 
 async function run() {
   switch (command) {
-    case 'bot:status': {
-      const token = getSetting('discord_bot_token') || process.env.DISCORD_BOT_TOKEN;
-      const clientId = getSetting('discord_client_id') || process.env.DISCORD_CLIENT_ID;
-      const channelId = getSetting('discord_channel_id') || process.env.DISCORD_CHANNEL_ID;
-      const guildId = getSetting('discord_guild_id') || process.env.DISCORD_GUILD_ID;
-
-      console.log('\n🤖 RepoBeacon Discord Bot Status:');
-      console.log('---------------------------------');
-      console.log(`Bot Token:         ${token ? '✅ Configured (••••••••' + token.slice(-4) + ')' : '❌ Not set'}`);
-      console.log(`Client ID:         ${clientId ? '✅ ' + clientId : '⚠️ Not set (auto-derived on login)'}`);
-      console.log(`Default Channel:   ${channelId ? '✅ ' + channelId : '⚠️ Not set'}`);
-      console.log(`Guild ID (Dev):    ${guildId ? '✅ ' + guildId : 'None (Global)'}\n`);
-      break;
-    }
-
-    case 'bot:commands': {
-      const token = getSetting('discord_bot_token') || process.env.DISCORD_BOT_TOKEN;
-      const clientId = getSetting('discord_client_id') || process.env.DISCORD_CLIENT_ID;
-      const guildId = getSetting('discord_guild_id') || process.env.DISCORD_GUILD_ID;
-
-      if (!token) {
-        console.error('Error: DISCORD_BOT_TOKEN is not configured.');
-        process.exit(1);
-      }
-
-      console.log('\nDeploying slash commands to Discord...');
-      const bot = new DiscordBotService({ token, clientId, guildId });
-      await bot.registerCommands();
-      console.log('✅ Slash commands successfully registered.\n');
-      break;
-    }
-
     case 'queue:status': {
       const status = getQueueStatus();
       console.log('\n📊 RepoBeacon Outbox Queue Status:');
@@ -130,8 +96,6 @@ Usage: node bin/repobeacon-cli.js <command> [args]
        repobeacon <command> [args]
 
 Commands:
-  bot:status            View Discord Bot configuration status
-  bot:commands          Deploy slash commands to Discord application
   queue:status          View counts of pending, delivered, failed, and dead-letter items
   queue:pending         List up to 20 pending or retrying deliveries
   queue:retry <id>      Re-enqueue a specific failed or dead-letter item

@@ -98,7 +98,7 @@ export function createServer(options = {}) {
   app.get('/health', (req, res) => {
     res.status(200).json({
       status: 'ok',
-      service: 'GitHub Discord Bot',
+      service: 'RepoBeacon',
       uptime: process.uptime(),
       timestamp: new Date().toISOString()
     });
@@ -136,7 +136,7 @@ export function createServer(options = {}) {
 
     // Ping event
     if (eventName === 'ping') {
-      return res.status(200).json({ message: 'Pong! GitHub Discord Bot webhook endpoint active.' });
+      return res.status(200).json({ message: 'Pong! RepoBeacon webhook endpoint active.' });
     }
 
     // Verify HMAC if configured
@@ -606,18 +606,18 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   pipeline.startQueueProcessor();
 
   const server = app.listen(PORT, () => {
-    console.log(`\n🚀 GitHub Discord Bot Server running at http://0.0.0.0:${PORT}`);
+    console.log(`\n🚀 RepoBeacon Server running at http://0.0.0.0:${PORT}`);
     console.log(`📡 GitHub Webhook Endpoint: http://0.0.0.0:${PORT}/api/webhooks/github`);
     console.log(`🩺 Health check endpoint:   http://0.0.0.0:${PORT}/health\n`);
   });
 
   // Graceful shutdown
   const shutdown = () => {
-    console.log('\n[GitHub Discord Bot] Gracefully shutting down...');
+    console.log('\n[RepoBeacon] Gracefully shutting down...');
     scheduler.stop();
     pipeline.stopQueueProcessor();
     server.close(() => {
-      console.log('[GitHub Discord Bot] HTTP server closed.');
+      console.log('[RepoBeacon] HTTP server closed.');
       process.exit(0);
     });
   };

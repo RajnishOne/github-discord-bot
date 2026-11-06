@@ -10,9 +10,19 @@ export function initDatabase(dbPath = null) {
     if (!fs.existsSync(dataDir)) {
       fs.mkdirSync(dataDir, { recursive: true });
     }
-    const defaultFile = path.join(dataDir, 'github_discord_bot.sqlite');
-    const legacyFile = path.join(dataDir, 'repo_pulse.sqlite');
-    dbPath = fs.existsSync(legacyFile) && !fs.existsSync(defaultFile) ? legacyFile : defaultFile;
+    const defaultFile = path.join(dataDir, 'repobeacon.sqlite');
+    const legacyFile1 = path.join(dataDir, 'github_discord_bot.sqlite');
+    const legacyFile2 = path.join(dataDir, 'repo_pulse.sqlite');
+
+    if (fs.existsSync(defaultFile)) {
+      dbPath = defaultFile;
+    } else if (fs.existsSync(legacyFile1)) {
+      dbPath = legacyFile1;
+    } else if (fs.existsSync(legacyFile2)) {
+      dbPath = legacyFile2;
+    } else {
+      dbPath = defaultFile;
+    }
   }
 
   const db = new DatabaseSync(dbPath);
@@ -150,7 +160,7 @@ export function addRepository(repoData) {
   const db = getDatabase();
 
   if (repoData.is_private) {
-    throw new Error('Rejected: GitHub Discord Bot cannot monitor private repositories.');
+    throw new Error('Rejected: RepoBeacon cannot monitor private repositories.');
   }
 
   const nowIso = new Date().toISOString();

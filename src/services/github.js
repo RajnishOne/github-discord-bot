@@ -1,5 +1,5 @@
 export class PrivateRepositoryError extends Error {
-  constructor(message = 'GitHub Discord Bot strictly rejects private repositories.') {
+  constructor(message = 'RepoBeacon strictly rejects private repositories.') {
     super(message);
     this.name = 'PrivateRepositoryError';
     this.statusCode = 400;
@@ -136,7 +136,7 @@ export class GitHubService {
     // Strict validation: Reject private repositories
     if (data.private === true || data.visibility === 'private' || data.visibility === 'internal') {
       throw new PrivateRepositoryError(
-        `Repository "${owner}/${repo}" is private. GitHub Discord Bot strictly monitors public repositories only.`
+        `Repository "${owner}/${repo}" is private. RepoBeacon strictly monitors public repositories only.`
       );
     }
 

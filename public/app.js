@@ -219,7 +219,7 @@ function setupFormHandlers() {
 
       if (data.code === 'PRIVATE_REPOSITORY_REJECTED') {
         verificationResultEl.className = 'verification-banner error';
-        verificationResultEl.innerHTML = `<strong>⛔ Private Repository:</strong> ${data.error}<br><small>GitHub Discord Bot strictly monitors public repositories.</small>`;
+        verificationResultEl.innerHTML = `<strong>⛔ Private Repository:</strong> ${data.error}<br><small>RepoBeacon strictly monitors public repositories.</small>`;
       } else if (data.code === 'REPOSITORY_NOT_FOUND') {
         verificationResultEl.className = 'verification-banner error';
         verificationResultEl.innerHTML = `<strong>⚠️ Not Found:</strong> ${data.error}`;
@@ -659,7 +659,7 @@ function attachRepoCardListeners() {
     btn.addEventListener('click', async (e) => {
       const id = e.currentTarget.dataset.id;
       const name = e.currentTarget.dataset.name;
-      if (!confirm(`Are you sure you want to remove ${name} from GitHub Discord Bot?`)) {
+      if (!confirm(`Are you sure you want to remove ${name} from RepoBeacon?`)) {
         return;
       }
       try {

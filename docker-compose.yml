@@ -1,7 +1,7 @@
 services:
-  github-discord-bot:
-    image: ghcr.io/rajnishone/github-discord-bot:latest
-    container_name: github-discord-bot
+  repobeacon:
+    image: ghcr.io/rajnishone/repobeacon:latest
+    container_name: repobeacon
     restart: unless-stopped
 
     environment:
@@ -19,7 +19,7 @@ services:
       - DEFAULT_POLLING_INTERVAL=${DEFAULT_POLLING_INTERVAL:-300}
 
     volumes:
-      - ${DATA_PATH:-/docker-data/github-discord-bot/data}:/app/data
+      - ${DATA_PATH:-/docker-data/repobeacon/data}:/app/data
 
     ports:
       - 3000:3000

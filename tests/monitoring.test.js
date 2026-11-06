@@ -39,7 +39,7 @@ function generateSignature(body, secret) {
   return `sha256=${hmac.update(body).digest('hex')}`;
 }
 
-test('GitHub Discord Bot Comprehensive Test Suite', async (t) => {
+test('RepoBeacon Comprehensive Test Suite', async (t) => {
 
   // -----------------------------------------------------------
   // 1. Webhook Security & Signatures

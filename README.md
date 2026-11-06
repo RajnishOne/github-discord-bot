@@ -1,22 +1,22 @@
-# GitHub Discord Bot
+# RepoBeacon
 
 > Real-time GitHub repository activity monitoring and Discord notification dispatcher with durable outbox delivery and adaptive public API polling.
 
-[![Publish Docker Image](https://github.com/RajnishOne/github-discord-bot/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/RajnishOne/github-discord-bot/actions/workflows/docker-publish.yml)
-[![Docker Image](https://img.shields.io/badge/GHCR-ghcr.io%2Frajnishone%2Fgithub--discord--bot-blue?logo=docker)](https://github.com/RajnishOne/github-discord-bot/pkgs/container/github-discord-bot)
+[![Publish Docker Image](https://github.com/RajnishOne/repobeacon/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/RajnishOne/repobeacon/actions/workflows/docker-publish.yml)
+[![Docker Image](https://img.shields.io/badge/GHCR-ghcr.io%2Frajnishone%2Frepobeacon-blue?logo=docker)](https://github.com/RajnishOne/repobeacon/pkgs/container/repobeacon)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-![GitHub Discord Bot Dashboard](docs/screenshots/dashboard.png)
+![RepoBeacon Dashboard](docs/screenshots/dashboard.png)
 
 ---
 
 ## 1. Project Overview
 
-**GitHub Discord Bot** is a lightweight, self-hosted service designed to run on a home server, VPS, or NAS (such as OpenMediaVault). It bridges your public GitHub repositories and your Discord server by capturing activity in real time and sending beautifully formatted, actionable notification embeds to a designated Discord channel.
+**RepoBeacon** is a lightweight, self-hosted service designed to run on a home server, VPS, or NAS (such as OpenMediaVault). It bridges your public GitHub repositories and your Discord server by capturing activity in real time and sending beautifully formatted, actionable notification embeds to a designated Discord channel.
 
-GitHub Discord Bot solves two core problems:
-1. **Zero Configuration for Owned Repositories:** Once installed as a GitHub App on your GitHub account, GitHub Discord Bot automatically listens to all public repositories you own—including newly created ones—without requiring manual webhook setup on each repository.
-2. **Universal Public Repository Watchlist:** For external open-source projects or repositories you don't own (e.g., `facebook/react`, `expressjs/express`, `torvalds/linux`), GitHub Discord Bot provides an adaptive polling engine that tracks releases, pull requests, issues, and commits using GitHub's public API while strictly respecting rate limits and ETag caching.
+RepoBeacon solves two core problems:
+1. **Zero Configuration for Owned Repositories:** Once installed as a GitHub App on your GitHub account, RepoBeacon automatically listens to all public repositories you own—including newly created ones—without requiring manual webhook setup on each repository.
+2. **Universal Public Repository Watchlist:** For external open-source projects or repositories you don't own (e.g., `facebook/react`, `expressjs/express`, `torvalds/linux`), RepoBeacon provides an adaptive polling engine that tracks releases, pull requests, issues, and commits using GitHub's public API while strictly respecting rate limits and ETag caching.
 
 ---
 
@@ -52,7 +52,7 @@ flowchart TD
 
     subgraph Operator & Web Interface
         WebUI["Web Dashboard & Admin API\n(Port 3000)"] <--> DB
-        AdminCLI["bot-cli (Queue & Repo Management)"] <--> DB
+        AdminCLI["repobeacon-cli (Queue & Repo Management)"] <--> DB
     end
 ```
 
@@ -86,7 +86,7 @@ flowchart TD
 The multi-architecture Docker image is automatically published to GitHub Container Registry (**GHCR**) for `linux/amd64` (Intel/AMD) and `linux/arm64` (Apple Silicon, Raspberry Pi, ARM servers):
 
 ```text
-ghcr.io/rajnishone/github-discord-bot:latest
+ghcr.io/rajnishone/repobeacon:latest
 ```
 
 ### Option A: Using Docker Compose (Recommended)
@@ -94,16 +94,16 @@ ghcr.io/rajnishone/github-discord-bot:latest
 You don't need to clone the full repository code—simply create a folder on your server with a `docker-compose.yml` and `.env` file:
 
 ```bash
-mkdir -p /docker-data/github-discord-bot/data
-chown -R 1000:100 /docker-data/github-discord-bot/data
+mkdir -p /docker-data/repobeacon/data
+chown -R 1000:100 /docker-data/repobeacon/data
 ```
 
 Create `docker-compose.yml`:
 ```yaml
 services:
-  github-discord-bot:
-    image: ghcr.io/rajnishone/github-discord-bot:latest
-    container_name: github-discord-bot
+  repobeacon:
+    image: ghcr.io/rajnishone/repobeacon:latest
+    container_name: repobeacon
     restart: unless-stopped
 
     environment:
@@ -121,7 +121,7 @@ services:
       - DEFAULT_POLLING_INTERVAL=${DEFAULT_POLLING_INTERVAL:-300}
 
     volumes:
-      - /docker-data/github-discord-bot/data:/app/data
+      - /docker-data/repobeacon/data:/app/data
 
     ports:
       - 3000:3000
@@ -129,6 +129,13 @@ services:
     dns:
       - 1.1.1.1
       - 8.8.8.8
+
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
     networks:
       - default
@@ -149,7 +156,7 @@ DEFAULT_POLLING_INTERVAL=300
 TZ=Asia/Kolkata
 ```
 
-Start the bot:
+Start RepoBeacon:
 ```bash
 docker compose up -d
 docker compose logs -f
@@ -159,29 +166,21 @@ docker compose logs -f
 
 ```bash
 docker run -d \
-  --name github-discord-bot \
+  --name repobeacon \
   --restart unless-stopped \
   -p 3000:3000 \
   -v $(pwd)/data:/app/data \
   -e DISCORD_WEBHOOK_URL="https://discord.com/api/webhooks/..." \
   -e GITHUB_TOKEN="ghp_..." \
   -e GITHUB_OWNER="your-username" \
-  ghcr.io/rajnishone/github-discord-bot:latest
+  ghcr.io/rajnishone/repobeacon:latest
 ```
-
-> [!TIP]
-> **Ensuring GHCR Public Image Access:**
-> To pull the image anonymously on any machine without `docker login`:
-> 1. In GitHub, go to your repository or user profile → **Packages**.
-> 2. Click **github-discord-bot**.
-> 3. In the right sidebar, click **Package settings**.
-> 4. Scroll to **Danger Zone** → **Change package visibility** → Select **Public** and confirm.
 
 ---
 
 ## 5. Using the Web UI to Configure & Add Public Repositories
 
-GitHub Discord Bot includes a modern, responsive web dashboard available on port `3000` (`http://localhost:3000` or `http://<your-server-ip>:3000`).
+RepoBeacon includes a modern, responsive web dashboard available on port `3000` (`http://localhost:3000` or `http://<your-server-ip>:3000`).
 
 ### Initial Settings Setup in Web UI (Zero-Touch Container Config)
 1. Open the dashboard in your browser (`http://<your-server-ip>:3000`).
@@ -210,7 +209,7 @@ Use this to track repositories you do not own (e.g. `expressjs/express`, `facebo
 2. Click **+ Add Repository** (or **+ Add Public Repository**).
 3. In the modal:
    - **GitHub Repository:** Enter the repository identifier in either `owner/repository` format (e.g. `facebook/react`) or as a full GitHub URL (e.g. `https://github.com/expressjs/express`).
-   - Click **Verify**: The bot performs an instant API check against GitHub to verify the repo exists, confirms it is strictly public, and displays its current stars, forks, and open issues count.
+   - Click **Verify**: RepoBeacon performs an instant API check against GitHub to verify the repo exists, confirms it is strictly public, and displays its current stars, forks, and open issues count.
    - **Repository Ownership:** Leave **🔄 Watched Public Repository** selected.
    - **Notification Categories:** Check or uncheck the types of events you want forwarded to Discord:
      - 🚀 Releases *(recommended)*
@@ -237,7 +236,7 @@ Use this for your own GitHub repositories where you want instant sub-second webh
 #### Method 1: One-Click Auto-Discovery
 1. Switch to the **👑 My Repositories** tab.
 2. Click the **✨ Auto-Discover Now** button in the banner.
-3. The bot connects to your GitHub account (using the configured `GITHUB_TOKEN`), finds all public repositories you own, filters out any private ones, and registers them automatically.
+3. RepoBeacon connects to your GitHub account (using the configured `GITHUB_TOKEN`), finds all public repositories you own, filters out any private ones, and registers them automatically.
 
 #### Method 2: Manual Registration
 1. Click **+ Add Repository**.
@@ -261,11 +260,11 @@ To receive real-time webhooks without adding webhooks manually repository by rep
 
 1. Go to **GitHub Settings** → **Developer settings** → **GitHub Apps** → **New GitHub App**.
 2. Fill in the general settings:
-   - **GitHub App name:** `GitHub-Discord-Bot-YourName` (must be globally unique).
+   - **GitHub App name:** `RepoBeacon-YourName` (must be globally unique).
    - **Homepage URL:** `https://github.com/your-username` (or your domain).
 3. Webhook settings:
    - Check **Active**.
-   - **Webhook URL:** `https://bot.yourdomain.com/api/webhooks/github` (your public HTTPS URL).
+   - **Webhook URL:** `https://repobeacon.yourdomain.com/api/webhooks/github` (your public HTTPS URL).
    - **Webhook secret:** Generate a strong secret (e.g. `openssl rand -hex 24`) and save it for `.env`.
 4. Permissions (Repository permissions):
    - **Issues:** Read-only (subscribe to Issues, Issue comment).
@@ -285,7 +284,7 @@ To receive real-time webhooks without adding webhooks manually repository by rep
 
 1. In Discord, navigate to the text channel where you want notifications.
 2. Click the gear icon (**Edit Channel**) → **Integrations** → **Webhooks** → **New Webhook**.
-3. Name it `GitHub Discord Bot` and optionally set an icon.
+3. Name it `RepoBeacon` and optionally set an icon.
 4. Click **Copy Webhook URL**. Save this URL for your `.env` file (`DISCORD_WEBHOOK_URL`).
 
 ---
@@ -295,7 +294,7 @@ To receive real-time webhooks without adding webhooks manually repository by rep
 | Variable | Description | Default / Example |
 | :--- | :--- | :--- |
 | `PORT` | Local container port | `3000` |
-| `DATA_PATH` | Persistent host directory for SQLite | `./data` (or `/srv/dev-disk-by-uuid-.../data`) |
+| `DATA_PATH` | Persistent host directory for SQLite | `./data` (or `/docker-data/repobeacon/data`) |
 | `GITHUB_OWNER` | Your GitHub username | `octocat` |
 | `GITHUB_WEBHOOK_SECRET`| The secret set in GitHub App settings | `your_secret_here` |
 | `GITHUB_TOKEN` | Personal Access Token (for 5,000 req/hr & discovery) | `ghp_...` |
@@ -311,37 +310,37 @@ GitHub requires a valid public HTTPS endpoint to deliver webhooks.
 
 In **Nginx Proxy Manager (NPM)**:
 1. Click **Add Proxy Host**.
-2. **Domain Names:** `bot.yourdomain.com`
-3. **Forward Hostname / IP:** `github-discord-bot` (if sharing a Docker network) or your server's local IP (e.g. `192.168.1.100`).
+2. **Domain Names:** `repobeacon.yourdomain.com`
+3. **Forward Hostname / IP:** `repobeacon` (if sharing a Docker network) or your server's local IP (e.g. `192.168.1.100`).
 4. **Forward Port:** `3000`
 5. Enable **Block Common Exploits** and **Websockets Support**.
 6. On the **SSL** tab: Select your Let's Encrypt certificate, check **Force SSL** and **HTTP/2 Support**.
 7. Click **Save**.
 
 Your GitHub App webhook URL will be:
-`https://bot.yourdomain.com/api/webhooks/github`
+`https://repobeacon.yourdomain.com/api/webhooks/github`
 
 ---
 
 ## 10. Administrative Controls & CLI
 
-GitHub Discord Bot includes a built-in CLI for inspecting queue state, managing deliveries, and viewing monitored repositories:
+RepoBeacon includes a built-in CLI for inspecting queue state, managing deliveries, and viewing monitored repositories:
 
 ```bash
 # View outbox delivery queue status
-docker compose exec github-discord-bot node bin/bot-cli.js queue:status
+docker compose exec repobeacon node bin/repobeacon-cli.js queue:status
 
 # List pending or failing delivery items
-docker compose exec github-discord-bot node bin/bot-cli.js queue:pending
+docker compose exec repobeacon node bin/repobeacon-cli.js queue:pending
 
 # Re-enqueue a failed delivery item
-docker compose exec github-discord-bot node bin/bot-cli.js queue:retry <id>
+docker compose exec repobeacon node bin/repobeacon-cli.js queue:retry <id>
 
 # Re-enqueue all dead-letter items after fixing Discord webhook URL
-docker compose exec github-discord-bot node bin/bot-cli.js queue:retry-all
+docker compose exec repobeacon node bin/repobeacon-cli.js queue:retry-all
 
 # List all monitored repositories and health status
-docker compose exec github-discord-bot node bin/bot-cli.js repos:list
+docker compose exec repobeacon node bin/repobeacon-cli.js repos:list
 ```
 
 Locally via npm:
@@ -354,12 +353,12 @@ npm run cli -- repos:list
 
 ## 11. Database Backup & Restore
 
-GitHub Discord Bot stores all data in a single SQLite database inside `DATA_PATH` (default: `./data/github_discord_bot.sqlite`).
+RepoBeacon stores all data in a single SQLite database inside `DATA_PATH` (default: `./data/repobeacon.sqlite`, with automatic fallback detection for legacy database files).
 
 ### Backup
 ```bash
 # Safe hot backup using SQLite online backup
-sqlite3 ./data/github_discord_bot.sqlite ".backup './data/backup_$(date +%Y%m%d_%H%M%S).sqlite'"
+sqlite3 ./data/repobeacon.sqlite ".backup './data/backup_$(date +%Y%m%d_%H%M%S).sqlite'"
 ```
 
 ### Restore
@@ -368,7 +367,7 @@ sqlite3 ./data/github_discord_bot.sqlite ".backup './data/backup_$(date +%Y%m%d_
 docker compose down
 
 # 2. Restore file
-cp ./data/backup_20261016.sqlite ./data/github_discord_bot.sqlite
+cp ./data/backup_20261016.sqlite ./data/repobeacon.sqlite
 
 # 3. Restart container
 docker compose up -d
@@ -397,13 +396,13 @@ Whenever changes are pushed to `main` or a release tag (`v*.*.*`) is created, Gi
 ### 2. GitHub Rate Limits on External Repositories
 - By default, unauthenticated GitHub API requests are limited to 60/hr.
 - Configure `GITHUB_TOKEN` in `.env` or through the Web UI Settings to immediately expand your quota to **5,000 requests/hr**.
-- GitHub Discord Bot uses conditional `ETag` requests (`304 Not Modified`), conserving rate limit quota.
+- RepoBeacon uses conditional `ETag` requests (`304 Not Modified`), conserving rate limit quota.
 
 ### 3. Events Delivered Multiple Times
-- GitHub Discord Bot tracks deterministic deduplication keys in `processed_events`. If duplicate webhooks or simultaneous polling events arrive, the second event is suppressed automatically.
+- RepoBeacon tracks deterministic deduplication keys in `processed_events`. If duplicate webhooks or simultaneous polling events arrive, the second event is suppressed automatically.
 
 ---
 
 ## 14. License
 
-MIT License © 2026 GitHub Discord Bot Contributors.
+MIT License © 2026 RepoBeacon Contributors.

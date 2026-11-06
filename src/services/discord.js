@@ -153,7 +153,7 @@ export class DiscordService {
       },
       fields,
       footer: {
-        text: `GitHub Discord Bot • ${event.source ? event.source.toUpperCase() : 'MONITOR'}`
+        text: `RepoBeacon • ${event.source ? event.source.toUpperCase() : 'MONITOR'}`
       },
       timestamp: event.timestamp || new Date().toISOString()
     };
@@ -164,7 +164,7 @@ export class DiscordService {
   async dispatchNotification(event) {
     const embed = this.createEmbed(event);
     const payload = {
-      username: 'GitHub Bot',
+      username: 'RepoBeacon',
       avatar_url: 'https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png',
       embeds: [embed],
       allowed_mentions: {
@@ -230,19 +230,19 @@ export class DiscordService {
     }
 
     const testEmbed = {
-      title: '🎯 GitHub Discord Bot Webhook Test Connection',
-      description: 'GitHub Discord Bot is successfully connected to your Discord server! You will receive notifications here according to your watched repository settings.',
+      title: '🎯 RepoBeacon Webhook Test Connection',
+      description: 'RepoBeacon is successfully connected to your Discord server! You will receive notifications here according to your watched repository settings.',
       color: 0x10B981,
       fields: [
         { name: 'Status', value: '✅ Operational', inline: true },
         { name: 'Timestamp', value: new Date().toLocaleTimeString(), inline: true }
       ],
-      footer: { text: 'GitHub Discord Bot Notification System' },
+      footer: { text: 'RepoBeacon Notification System' },
       timestamp: new Date().toISOString()
     };
 
     const payload = {
-      username: 'GitHub Bot',
+      username: 'RepoBeacon',
       avatar_url: 'https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png',
       embeds: [testEmbed],
       allowed_mentions: { parse: [] }
